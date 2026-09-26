@@ -1,0 +1,20 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "mcdaliu"
+            }
+        ],
+        "Category": "System Information",
+        "Description": "A very compact hardware monitor for the panel: shows CPU, memory, network and other sensors as plain text, TrafficMonitor style",
+        "Description[zh_CN]": "极为紧凑的任务栏硬件监视器：以纯文本显示网速、CPU、内存等传感器，类似 TrafficMonitor",
+        "Icon": "utilities-system-monitor",
+        "Id": "org.mcdaliu.compactmonitor",
+        "License": "GPL-2.0-or-later",
+        "Name": "Compact Monitor",
+        "Name[zh_CN]": "紧凑监视器",
+        "Version": "1.0.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

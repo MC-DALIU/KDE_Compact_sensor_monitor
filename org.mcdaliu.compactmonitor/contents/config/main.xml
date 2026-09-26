@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+      http://www.kde.org/standards/kcfg/1.0/kcfg.xsd" >
+  <kcfgfile name=""/>
+
+  <group name="Appearance">
+    <entry name="lineCount" type="Int">
+      <label>Number of text lines (1 or 2)</label>
+      <default>2</default>
+    </entry>
+    <entry name="tableLayout" type="Bool">
+      <label>Align the sensors in columns, like a table</label>
+      <default>false</default>
+    </entry>
+    <entry name="autoFontSize" type="Bool">
+      <label>Automatically fit the font size to the panel height</label>
+      <default>true</default>
+    </entry>
+    <entry name="fontSize" type="Int">
+      <label>Font size in pixels (used when auto font size is disabled)</label>
+      <default>12</default>
+    </entry>
+    <entry name="fontFamily" type="String">
+      <label>Font family, empty means the system font</label>
+      <default></default>
+    </entry>
+    <entry name="bold" type="Bool">
+      <default>false</default>
+    </entry>
+    <entry name="showNames" type="Bool">
+      <label>Show the sensor name in front of each value</label>
+      <default>true</default>
+    </entry>
+    <entry name="itemSpacing" type="Int">
+      <label>Space between two sensors, in pixels</label>
+      <default>8</default>
+    </entry>
+    <entry name="labelAlignment" type="Int">
+      <label>Alignment of the sensor names in the table layout (0 left, 1 center, 2 right)</label>
+      <default>0</default>
+    </entry>
+    <entry name="valueAlignment" type="Int">
+      <label>Alignment of the sensor values in the table layout (0 left, 1 center, 2 right)</label>
+      <default>0</default>
+    </entry>
+    <entry name="separator" type="String">
+      <label>Optional separator drawn between two sensors</label>
+      <default></default>
+    </entry>
+    <entry name="showColorBar" type="Bool">
+      <label>Draw a small colored bar in front of sensors that have a color</label>
+      <default>false</default>
+    </entry>
+    <entry name="autoAdaptColors" type="Bool">
+      <label>Adapt the colors automatically to dark/light themes</label>
+      <default>true</default>
+    </entry>
+    <entry name="customTextColor" type="Bool">
+      <default>false</default>
+    </entry>
+    <entry name="textColor" type="String">
+      <default>#ffffff</default>
+    </entry>
+    <entry name="updateInterval" type="Int">
+      <label>Update interval in milliseconds</label>
+      <default>1000</default>
+    </entry>
+  </group>
+
+  <group name="Sensors">
+    <entry name="sensorIds" type="StringList">
+      <default>network/all/upload,network/all/download,cpu/all/usage,memory/physical/usedPercent</default>
+    </entry>
+    <entry name="sensorLabels" type="StringList">
+      <default>↑,↓,CPU,RAM</default>
+    </entry>
+    <entry name="sensorColors" type="StringList">
+      <default>#2ec27e,#3584e4,#e5a50a,#c061cb</default>
+    </entry>
+    <entry name="sensorShowLabels" type="StringList">
+      <default>1,1,1,1</default>
+    </entry>
+  </group>
+</kcfg>
