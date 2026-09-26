@@ -14,4 +14,9 @@ ConfigModel {
         icon: "ksysguardd"
         source: "config/ConfigSensors.qml"
     }
+    ConfigCategory {
+        name: i18n("告警")
+        icon: "notifications"
+        source: "config/ConfigAlerts.qml"
+    }
 }

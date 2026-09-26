@@ -9,7 +9,9 @@ import QtQuick.Controls as QQC2
 import QtQuick.Dialogs as Dialogs
 import QtQuick.Layouts
 
+import "../AlertRules.js" as AlertRules
 import "../SensorNames.js" as SensorNames
+import "../ShellUtils.js" as ShellUtils
 
 import org.kde.kcmutils as KCM
 import org.kde.kirigami as Kirigami
@@ -38,6 +40,29 @@ KCM.SimpleKCM {
     ]
     readonly property var defaultLabels: ["↑", "↓", "CPU", "RAM"]
     readonly property var defaultColors: ["#2ec27e", "#3584e4", "#e5a50a", "#c061cb"]
+
+    /*!
+        Appearance entries that are exported and imported together with the
+        sensors, with the validation used when reading them back.
+    */
+    readonly property var appearanceSpec: [
+        {"key": "lineCount", "type": "int", "min": 1, "max": 2},
+        {"key": "tableLayout", "type": "bool"},
+        {"key": "labelAlignment", "type": "int", "min": 0, "max": 2},
+        {"key": "valueAlignment", "type": "int", "min": 0, "max": 2},
+        {"key": "autoFontSize", "type": "bool"},
+        {"key": "fontSize", "type": "int", "min": 6, "max": 48},
+        {"key": "fontFamily", "type": "string"},
+        {"key": "bold", "type": "bool"},
+        {"key": "showNames", "type": "bool"},
+        {"key": "itemSpacing", "type": "int", "min": 0, "max": 40},
+        {"key": "separator", "type": "string", "maxLength": 3},
+        {"key": "showColorBar", "type": "bool"},
+        {"key": "customTextColor", "type": "bool"},
+        {"key": "textColor", "type": "string", "color": true},
+        {"key": "autoAdaptColors", "type": "bool"},
+        {"key": "updateInterval", "type": "int", "min": 100, "max": 10000}
+    ]
 
     // import / export state
     property bool busy: false
@@ -126,11 +151,6 @@ KCM.SimpleKCM {
         resultMessage.visible = true;
     }
 
-    /*! single quote a string for the shell */
-    function shellQuote(value) {
-        return "'" + String(value).replace(/'/g, "'\\''") + "'";
-    }
-
     function toLocalPath(url) {
         let text = String(url);
         if (text.indexOf("file://") === 0) {
@@ -174,11 +194,107 @@ KCM.SimpleKCM {
         return text;
     }
 
+    function exportAppearance() {
+        const result = {};
+        for (let i = 0; i < root.appearanceSpec.length; ++i) {
+            const key = root.appearanceSpec[i].key;
+            const value = Plasmoid.configuration[key];
+            if (value !== undefined) {
+                result[key] = value;
+            }
+        }
+        return result;
+    }
+
+    /*! Writes the appearance part of an imported file, clamped to sane values. */
+    function applyAppearance(data, problems) {
+        let applied = 0;
+        for (let i = 0; i < root.appearanceSpec.length; ++i) {
+            const spec = root.appearanceSpec[i];
+            const raw = data[spec.key];
+            if (raw === undefined || raw === null) {
+                continue;
+            }
+            let value = null;
+            if (spec.type === "bool") {
+                value = !(raw === false || raw === 0 || raw === "0" || raw === "false");
+            } else if (spec.type === "int") {
+                const number = Number(raw);
+                if (isNaN(number)) {
+                    problems.push(i18n("外观设置 %1 不是数字，已忽略", spec.key));
+                    continue;
+                }
+                value = Math.round(number);
+                const clamped = Math.min(spec.max, Math.max(spec.min, value));
+                if (clamped !== value) {
+                    problems.push(i18n("外观设置 %1 超出范围，已调整为 %2", spec.key, clamped));
+                    value = clamped;
+                }
+            } else if (spec.color === true) {
+                value = root.normalizeColor(raw);
+                if (value.length === 0) {
+                    problems.push(i18n("外观设置 %1 颜色无效，已忽略", spec.key));
+                    continue;
+                }
+            } else {
+                value = String(raw);
+                if (spec.maxLength !== undefined && value.length > spec.maxLength) {
+                    value = value.substring(0, spec.maxLength);
+                }
+            }
+            Plasmoid.configuration[spec.key] = value;
+            applied++;
+        }
+        return applied;
+    }
+
+    function applyImportedAlerts(list, problems) {
+        const known = picker.availableSensorIds();
+        const knownCount = Object.keys(known).length;
+        const result = [];
+        for (let i = 0; i < list.length; ++i) {
+            const raw = list[i];
+            const position = i + 1;
+            if (raw === null || typeof raw !== "object") {
+                problems.push(i18n("告警第 %1 项不是对象", position));
+                continue;
+            }
+            const id = (raw.sensorId === undefined || raw.sensorId === null) ? "" : String(raw.sensorId);
+            if (id.length === 0) {
+                problems.push(i18n("告警第 %1 项缺少 sensorId", position));
+                continue;
+            }
+            if (knownCount > 0 && known[id] !== true) {
+                problems.push(i18n("告警第 %1 项：本机没有传感器 %2", position, id));
+                continue;
+            }
+            const threshold = Number(raw.threshold);
+            if (isNaN(threshold)) {
+                problems.push(i18n("告警第 %1 项：阈值无效", position));
+                continue;
+            }
+            let cooldown = Number(raw.cooldown);
+            if (isNaN(cooldown) || cooldown < 1) {
+                cooldown = 300;
+            }
+            result.push({
+                "sensorId": id,
+                "condition": raw.condition === "below" ? "below" : "above",
+                "threshold": threshold,
+                "cooldown": Math.min(86400, Math.round(cooldown)),
+                "enabled": !(raw.enabled === false || raw.enabled === 0 || raw.enabled === "0" || raw.enabled === "false")
+            });
+        }
+        Plasmoid.configuration.alerts = AlertRules.encodeList(result);
+        return result.length;
+    }
+
     function exportToFile(path) {
         const payload = {
             "applet": "org.mcdaliu.compactmonitor",
-            "version": 1,
+            "version": 2,
             "exportedAt": new Date().toISOString(),
+            "appearance": root.exportAppearance(),
             "sensors": root.entries.map(function (entry) {
                 return {
                     "sensorId": entry.sensorId,
@@ -186,16 +302,17 @@ KCM.SimpleKCM {
                     "color": entry.color,
                     "showLabel": entry.showLabel
                 };
-            })
+            }),
+            "alerts": AlertRules.decodeList(Plasmoid.configuration.alerts)
         };
         root.exportedPath = path;
-        root.runShell("export", "printf %s " + root.shellQuote(JSON.stringify(payload, null, 2))
-                      + " > " + root.shellQuote(path));
+        root.runShell("export", "printf %s " + ShellUtils.quote(JSON.stringify(payload, null, 2))
+                      + " > " + ShellUtils.quote(path));
     }
 
     function importFromFile(path) {
         root.importedPath = path;
-        root.runShell("import", "cat " + root.shellQuote(path));
+        root.runShell("import", "cat " + ShellUtils.quote(path));
     }
 
     function applyImported(path, text) {
@@ -273,8 +390,25 @@ KCM.SimpleKCM {
         root.entries = entries;
         root.pushToConfig();
 
+        // appearance settings and alert rules travel in the same file (version 2
+        // and later); older files simply do not have them
+        let appearanceCount = 0;
+        if (data !== null && typeof data === "object" && data.appearance !== null
+                && typeof data.appearance === "object") {
+            appearanceCount = root.applyAppearance(data.appearance, problems);
+        }
+        let alertCount = 0;
+        if (data !== null && typeof data === "object" && Array.isArray(data.alerts)) {
+            alertCount = root.applyImportedAlerts(data.alerts, problems);
+        }
+
+        const summary = appearanceCount > 0
+                ? i18n("已导入 %1 个传感器，外观设置也已更新。", entries.length)
+                : i18n("已导入 %1 个传感器。", entries.length);
+        const alerts = alertCount > 0 ? i18n("告警规则 %1 条。", alertCount) : "";
+
         if (problems.length === 0) {
-            root.showMessage(Kirigami.MessageType.Positive, i18n("已导入 %1 个传感器。", entries.length));
+            root.showMessage(Kirigami.MessageType.Positive, summary + (alerts.length > 0 ? " " + alerts : ""));
         } else {
             root.showMessage(Kirigami.MessageType.Warning,
                              i18n("已导入 %1 个传感器，%2 项被跳过或修正：", entries.length, problems.length)

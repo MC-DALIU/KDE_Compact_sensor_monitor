@@ -69,6 +69,13 @@
     </entry>
   </group>
 
+  <group name="Alerts">
+    <entry name="alerts" type="StringList">
+      <label>Threshold alerts, one per entry: sensorId|condition|threshold|cooldownSeconds|enabled</label>
+      <default></default>
+    </entry>
+  </group>
+
   <group name="Sensors">
     <entry name="sensorIds" type="StringList">
       <default>network/all/upload,network/all/download,cpu/all/usage,memory/physical/usedPercent</default>

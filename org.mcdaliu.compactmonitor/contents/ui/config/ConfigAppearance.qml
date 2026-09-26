@@ -47,20 +47,57 @@ KCM.SimpleKCM {
     property int cfg_itemSpacing: 8
     property int cfg_updateInterval: 1000
 
-    Kirigami.FormLayout {
-        // ---------------------------------------------------------------- preview
+    /*!
+        The preview lives outside the Kirigami.FormLayout on purpose: a
+        FormLayout section item does not stretch to the page width, so the
+        preview would stay as narrow as the form's implicit width.
+    */
+    ColumnLayout {
+        spacing: Kirigami.Units.smallSpacing
+
         Kirigami.Separator {
-            Kirigami.FormData.isSection: true
-            Kirigami.FormData.label: i18n("预览")
+            Layout.fillWidth: true
         }
 
+        QQC2.Label {
+            Layout.fillWidth: true
+            Layout.topMargin: Kirigami.Units.smallSpacing
+            horizontalAlignment: Text.AlignHCenter
+            font.bold: true
+            text: i18n("预览")
+        }
+
+        // ---------------------------------------------------------------- preview
         Item {
             id: previewBox
 
-            // a section item spans the whole form width, so the preview is
-            // centered on the page instead of being indented into the field column
-            Kirigami.FormData.isSection: true
+            // stretches to the full page width (it is a ColumnLayout child),
+            // and is clipped so it can never paint over the rest of the page
             Layout.fillWidth: true
+
+            //! font size the widget itself would use, before fitting the preview
+            readonly property int basePixelSize: root.cfg_autoFontSize
+                ? Math.max(10, Math.round(Kirigami.Units.gridUnit * 0.8))
+                : root.cfg_fontSize
+
+            /*!
+                A configured sensor list can be wider than the configuration
+                window. Instead of drawing outside this box - or scaling the item,
+                which makes the glyphs fuzzy and uneven - the font is made smaller
+                until the content fits.
+
+                The width is measured on a hidden copy that always uses
+                basePixelSize, so the measurement cannot depend on the result of
+                the calculation (which would oscillate).
+            */
+            readonly property real rawScale: (width > Kirigami.Units.largeSpacing * 2 && measurePreview.implicitWidth > 0)
+                ? (width - Kirigami.Units.largeSpacing * 2) / measurePreview.implicitWidth
+                : 1
+            // a little slack, text metrics do not scale perfectly linearly
+            readonly property real previewScale: rawScale >= 1 ? 1 : rawScale * 0.97
+            readonly property int pixelSize: Math.max(6, Math.floor(basePixelSize * previewScale))
+
+            clip: true // belt and braces: never paint over the rest of the page
             // Kirigami.FormLayout sizes its children by their implicitHeight, a
             // Layout.preferredHeight on its own is ignored (and evaluated too
             // early to see the child), so set both.
@@ -74,6 +111,38 @@ KCM.SimpleKCM {
                 color: Kirigami.Theme.alternateBackgroundColor
             }
 
+            // hidden, only used to measure how wide the content wants to be
+            Item {
+                width: 0
+                height: 0
+                visible: false
+
+                Ui.SensorView {
+                    id: measurePreview
+
+                    lineCount: root.cfg_lineCount
+                    tableMode: root.cfg_tableLayout
+                    labelAlignment: root.cfg_labelAlignment
+                    valueAlignment: root.cfg_valueAlignment
+                    uniformTextColor: root.cfg_customTextColor
+                    autoAdaptColors: root.cfg_autoAdaptColors
+                    backgroundColor: Kirigami.Theme.alternateBackgroundColor
+                    pixelSize: previewBox.basePixelSize
+                    fontFamily: root.cfg_fontFamily
+                    bold: root.cfg_bold
+                    showNames: root.cfg_showNames
+                    showColorBar: root.cfg_showColorBar
+                    itemSpacing: root.cfg_itemSpacing
+                    separator: root.cfg_separator
+                    textColor: root.cfg_customTextColor ? root.cfg_textColor : Kirigami.Theme.textColor
+                    updateInterval: Math.max(500, root.cfg_updateInterval)
+                    sensorIds: root.appliedSensorIds
+                    sensorLabels: root.appliedSensorLabels
+                    sensorColors: root.appliedSensorColors
+                    sensorShowLabels: root.appliedSensorShowLabels
+                }
+            }
+
             Ui.SensorView {
                 id: preview
 
@@ -85,7 +154,7 @@ KCM.SimpleKCM {
                 uniformTextColor: root.cfg_customTextColor
                 autoAdaptColors: root.cfg_autoAdaptColors
                 backgroundColor: Kirigami.Theme.alternateBackgroundColor
-                pixelSize: root.cfg_autoFontSize ? Math.max(10, Math.round(Kirigami.Units.gridUnit * 0.8)) : root.cfg_fontSize
+                pixelSize: previewBox.pixelSize
                 fontFamily: root.cfg_fontFamily
                 bold: root.cfg_bold
                 showNames: root.cfg_showNames
@@ -100,6 +169,10 @@ KCM.SimpleKCM {
                 sensorShowLabels: root.appliedSensorShowLabels
             }
         }
+
+        Kirigami.FormLayout {
+            Layout.fillWidth: true
+            Layout.topMargin: Kirigami.Units.largeSpacing
 
         // ---------------------------------------------------------------- layout
         Kirigami.Separator {
@@ -332,6 +405,7 @@ KCM.SimpleKCM {
             textFromValue: (value) => i18n("%1 毫秒", value)
             valueFromText: (text) => parseInt(text)
             onValueModified: root.cfg_updateInterval = value
+        }
         }
     }
 

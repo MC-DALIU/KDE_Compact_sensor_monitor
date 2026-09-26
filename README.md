@@ -45,8 +45,10 @@ text and hugs its content: the screenshot above is ten sensors in two lines.
   adjustment** that keeps the colors readable on any theme
 * **Sensor management**: add / remove / reorder with a searchable sensor picker, per sensor
   label and color
-* **Import / export** the sensor list as a JSON file; broken entries are skipped and reported
-  instead of failing the whole import
+* **Threshold alerts**: get a desktop notification when a sensor goes above or below a value,
+  with a cooldown so it cannot spam you
+* **Import / export** sensors, appearance and alert rules as a JSON file; broken entries are
+  skipped and reported instead of failing the whole import
 * **Details**: hover tooltip listing every value, custom refresh interval (100 ms – 10 s),
   item spacing, an optional separator character, click for a larger popup view
 * Right-click → *Configure Compact Monitor…* opens the standard Plasma configuration dialog
@@ -61,6 +63,14 @@ text and hugs its content: the screenshot above is ten sensors in two lines.
 | Configuration → Sensors               |
 | -------------------------------------- |
 | ![sensors page](Screenshots/Menu2.png) |
+
+<!-- Optional: add a screenshot of the Alerts page as Screenshots/Menu3.png and use
+
+| Configuration → Alerts |
+| ---------------------- |
+| ![alerts page](Screenshots/Menu3.png) |
+
+-->
 
 ## Requirements
 
@@ -138,6 +148,33 @@ move up / move down / remove buttons. *Add sensor…* opens a searchable tree of
 `ksystemstats` reports, *Restore defaults* brings back the shipped four, and
 *Import…* / *Export…* read and write JSON files.
 
+### Alerts
+
+One row per rule: the sensor (with its live value and id), *above* / *below*, the threshold, a
+cooldown in seconds, an enable checkbox and a delete button. *Add alert…* picks a sensor from
+the searchable tree; the same sensor can have several rules (for example battery below 20 and
+above 90). The grey text next to the threshold shows it converted with the sensor's unit, and
+the live value in the row tells you what a sensible threshold is.
+
+## Threshold alerts
+
+A rule notifies you when its sensor crosses a threshold:
+
+* **Condition** — *above* or *below*, compared against the sensor's raw value (the same number
+  the widget displays, before any unit formatting; the converted value is shown next to the
+  field so you can sanity check it)
+* **Cooldown** — after a notification, the rule stays quiet for this many seconds
+* **Enabled** — turn a rule off without deleting it
+
+Notifications are sent through the desktop notification service
+(`org.freedesktop.Notifications`), so they look like any other Plasma notification and follow
+your notification settings. A rule fires when it *starts* to match, and then at most once per
+cooldown while it keeps matching — there is no hysteresis yet, so a sensor hovering exactly
+around the threshold can produce one notification per cooldown.
+
+Rules live in the widget configuration; since they are part of the exported JSON, they travel
+with the rest of your setup.
+
 ## Sensor IDs
 
 The sensor list comes from `ksystemstats`. To list every id available on your machine:
@@ -188,30 +225,46 @@ Anything else is abbreviated to the first four upper-case characters
 ```json
 {
   "applet": "org.mcdaliu.compactmonitor",
-  "version": 1,
+  "version": 2,
   "exportedAt": "2026-09-25T13:44:10.398Z",
+  "appearance": {
+    "lineCount": 2, "tableLayout": true, "labelAlignment": 0, "valueAlignment": 2,
+    "autoFontSize": true, "fontSize": 12, "fontFamily": "", "bold": true,
+    "showNames": true, "itemSpacing": 8, "separator": "", "showColorBar": false,
+    "customTextColor": false, "textColor": "#ffffff", "autoAdaptColors": true,
+    "updateInterval": 1000
+  },
   "sensors": [
     { "sensorId": "network/all/upload", "label": "↑", "color": "#2ec27e", "showLabel": true },
     { "sensorId": "cpu/all/usage", "label": "CPU", "color": "#e5a50a", "showLabel": true }
+  ],
+  "alerts": [
+    { "sensorId": "cpu/all/usage", "condition": "above", "threshold": 90, "cooldown": 300, "enabled": true }
   ]
 }
 ```
 
 *Import…* accepts that object or a plain array of entries. Only `sensorId` is required —
 `label`, `color` and `showLabel` may be omitted. `color` accepts `#rrggbb` as well as KDE's
-`r,g,b` form, `showLabel` accepts `true/false/1/0`. The list is validated entry by entry and
-bad entries are **skipped and reported** in a message bar at the top of the page (up to eight
-details; everything also goes to the plasmashell log):
+`r,g,b` form, `showLabel` accepts `true/false/1/0`. The `appearance` and `alerts` sections are
+optional, so files written before they existed still import fine. Everything is validated piece
+by piece and bad parts are **skipped and reported** in a message bar at the top of the page (up
+to eight details; everything also goes to the plasmashell log):
 
 | Problem                           | Behaviour                              |
 | --------------------------------- | -------------------------------------- |
-| not an object, or no`sensorId`  | skipped                                |
+| not an object, or no `sensorId`  | skipped                                |
 | sensor id unknown on this machine | skipped                                |
 | the same id twice                 | the later one is skipped               |
-| unparsable`color`               | entry kept, color ignored (reported)   |
+| unparsable `color`               | entry kept, color ignored (reported)   |
+| appearance value out of range     | clamped to the allowed range, and reported             |
+| appearance value of the wrong type | kept as it was, and reported                          |
+| alert rule without `sensorId`, unknown sensor, non-numeric threshold | skipped        |
 | broken JSON / unreadable file     | red error message, nothing is imported |
 
-Importing **replaces** the current sensor list.
+Importing **replaces** the current sensor list, writes the appearance settings and replaces the
+alert rules. Appearance changes land in the widget configuration immediately, so the
+*Appearance* page shows them the next time you open it.
 
 ## How it works
 
@@ -238,6 +291,19 @@ A few notes for anyone who wants to hack on it (or write a similar widget):
   and output may arrive in several chunks.
 * **Config pages** receive `cfg_<key>` initial properties which are read back when saving, so
   every editable value is named `cfg_*`.
+* **Desktop notifications** also use the `executable` data source: a `gdbus call` to
+  `org.freedesktop.Notifications.Notify`, with every argument passed through `ShellUtils.quote()`
+  (the panel-spacer widget does the same). Alert rules are stored as one
+  `sensorId|condition|threshold|cooldown|enabled` string per rule and decoded by
+  `contents/ui/AlertRules.js`.
+* Do not reach for a `const`/`let` before its declaration in QML JavaScript: it is a temporal
+  dead zone error, and because it happens inside a signal handler the rest of that function is
+  silently skipped (it cost an evening while debugging the alerts).
+* **The preview** on the *Appearance* page is not scaled with a transform: shrinking an item that
+  way re-rasterizes the glyphs, which makes the strokes look uneven. It reduces the font size until
+  the content fits instead, measuring the natural width on a hidden copy of the view (measuring the
+  visible one would feed back into itself and oscillate). The preview also lives outside the
+  `Kirigami.FormLayout`, because a section item there does not stretch to the page width.
 * `Kirigami.FormLayout` sizes its rows by the children's `implicitHeight`, and a `QQC2.Label`
   with `wrapMode` still reports its full unwrapped width as `implicitWidth`. Both behaviours
   bit the configuration pages — see the comments in `HintLabel.qml` and
@@ -249,17 +315,17 @@ A few notes for anyone who wants to hack on it (or write a similar widget):
 | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | After an update the widget shows nothing, or is a tiny square | plasmashell's QML cache — restart plasmashell                                                  |
 | A sensor always shows`--`                                   | that sensor id does not exist on this machine; check the picker                                 |
-| Colors look washed out                                        | that is the automatic contrast adjustment; turn*Dark/light* off to keep your colors untouched |
-| The widget is too wide                                        | fewer sensors, hide the names, smaller font, or the*Packed* layout                            |
+| Colors look washed out                                        | that is the automatic contrast adjustment; turn *Dark/light* off to keep your colors untouched |
+| The widget is too wide                                        | fewer sensors, hide the names, smaller font, or the *Packed* layout                            |
 | Want to get rid of it                                         | `./install.sh --uninstall`, then remove the leftover icon from the panel                      |
+| Alerts never fire                                             | check that the rule is enabled and that its sensor really crosses the threshold; after a notification the rule stays quiet for its cooldown |
+| Notification does not appear                                  | they are ordinary desktop notifications: check *System Settings → Notifications* and do-not-disturb |
 
 ## Known limitations / roadmap
 
-* Sensors are split by count (packed) or by column (aligned); a sensor cannot be pinned to a
-  specific row or column
 * Values are not padded to a fixed width, so their length can change as the numbers grow (the
   *aligned* layout at least keeps the columns themselves stable)
-* No graphs, thresholds or history yet
+* No thresholds yet
 * UI strings are Chinese only so far
 
 ## Contributing
