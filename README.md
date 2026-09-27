@@ -45,11 +45,13 @@ text and hugs its content: the screenshot above is ten sensors in two lines.
   adjustment** that keeps the colors readable on any theme
 * **Sensor management**: add / remove / reorder with a searchable sensor picker, per sensor
   label and color
-* **Threshold alerts**: get a desktop notification when a sensor goes above or below a value,
-  with a cooldown so it cannot spam you
+* **Threshold alerts**: get a desktop notification when a sensor goes above or below a value;
+  a deadband (hysteresis) and a cooldown keep a value that wobbles around the threshold from
+  notifying over and over
 * **Import / export** sensors, appearance and alert rules as a JSON file; broken entries are
   skipped and reported instead of failing the whole import
-* **Details**: hover tooltip listing every value, custom refresh interval (100 ms – 10 s),
+* **Details**: hover tooltip listing every sensor (Plasma's own tooltip layout stops after eight
+  lines, so the widget supplies its own), custom refresh interval (100 ms – 10 s),
   item spacing, an optional separator character, click for a larger popup view
 * Right-click → *Configure Compact Monitor…* opens the standard Plasma configuration dialog
 * UI strings are Chinese for now — an English translation is a welcome contribution
@@ -64,13 +66,9 @@ text and hugs its content: the screenshot above is ten sensors in two lines.
 | -------------------------------------- |
 | ![sensors page](Screenshots/Menu2.png) |
 
-<!-- Optional: add a screenshot of the Alerts page as Screenshots/Menu3.png and use
-
 | Configuration → Alerts |
 | ---------------------- |
 | ![alerts page](Screenshots/Menu3.png) |
-
--->
 
 ## Requirements
 
@@ -103,6 +101,17 @@ Or by hand:
 kpackagetool6 --type Plasma/Applet --install org.mcdaliu.compactmonitor
 # updating: use --upgrade, or --remove first
 ```
+
+Or install the packaged file - the one attached to a release or downloaded from store.kde.org:
+
+```bash
+./package.sh                                        # builds compact-monitor.plasmoid
+kpackagetool6 --type Plasma/Applet --install compact-monitor.plasmoid
+```
+
+or right-click the panel → **Add Widgets…** → **Install Widget From Local File…** and pick the
+`.plasmoid` file. That dialog and the store need a single archive with `metadata.json` at its root,
+so a freshly cloned repository cannot be installed that way - use `install.sh` for the sources.
 
 Then right-click the panel → **Add Widgets…** → search for *Compact Monitor*.
 
@@ -150,8 +159,9 @@ move up / move down / remove buttons. *Add sensor…* opens a searchable tree of
 
 ### Alerts
 
-One row per rule: the sensor (with its live value and id), *above* / *below*, the threshold, a
-cooldown in seconds, an enable checkbox and a delete button. *Add alert…* picks a sensor from
+Each rule takes two lines: the sensor (with its live value and id), *above* / *below*, the
+threshold, a cooldown in seconds and a deadband, an enable checkbox and a delete button. The grey
+text next to the deadband says when the rule will arm again. *Add alert…* picks a sensor from
 the searchable tree; the same sensor can have several rules (for example battery below 20 and
 above 90). The grey text next to the threshold shows it converted with the sensor's unit, and
 the live value in the row tells you what a sensible threshold is.
@@ -163,14 +173,23 @@ A rule notifies you when its sensor crosses a threshold:
 * **Condition** — *above* or *below*, compared against the sensor's raw value (the same number
   the widget displays, before any unit formatting; the converted value is shown next to the
   field so you can sanity check it)
-* **Cooldown** — after a notification, the rule stays quiet for this many seconds
+* **Deadband** (hysteresis) — how far the value has to come back before the rule may fire
+  again. It defaults to 5% of the threshold, so a "CPU temperature above 80" rule arms again only
+  once the temperature drops to 76 or below: a value wobbling between 81 and 79 notifies once
+  instead of on every crossing. `0` disables the deadband.
+* **Cooldown** — a notification is never sent more often than this, whatever else happens
 * **Enabled** — turn a rule off without deleting it
+
+Firing works in two steps: the rule is *armed*, it fires when the value crosses the threshold,
+and it then stays disarmed until the value has come back past the threshold by the deadband. The
+cooldown is a second, independent limit on top of that, so nothing can ever notify more often
+than once per cooldown.
 
 Notifications are sent through the desktop notification service
 (`org.freedesktop.Notifications`), so they look like any other Plasma notification and follow
-your notification settings. A rule fires when it *starts* to match, and then at most once per
-cooldown while it keeps matching — there is no hysteresis yet, so a sensor hovering exactly
-around the threshold can produce one notification per cooldown.
+your notification settings. A rule that fires looks like this:
+
+![Notification: "CPU over threshold", current 100.0% (threshold 90)](Screenshots/Alert.png)
 
 Rules live in the widget configuration; since they are part of the exported JSON, they travel
 with the rest of your setup.
@@ -239,10 +258,14 @@ Anything else is abbreviated to the first four upper-case characters
     { "sensorId": "cpu/all/usage", "label": "CPU", "color": "#e5a50a", "showLabel": true }
   ],
   "alerts": [
-    { "sensorId": "cpu/all/usage", "condition": "above", "threshold": 90, "cooldown": 300, "enabled": true }
+    { "sensorId": "cpu/all/usage", "condition": "above", "threshold": 90, "cooldown": 300,
+      "enabled": true, "hysteresis": -1 }
   ]
 }
 ```
+
+In an alert rule `hysteresis` is the deadband: a number, `0` to disable it, or `-1` (or nothing
+at all) to derive it from the threshold.
 
 *Import…* accepts that object or a plain array of entries. Only `sensorId` is required —
 `label`, `color` and `showLabel` may be omitted. `color` accepts `#rrggbb` as well as KDE's
@@ -260,6 +283,7 @@ to eight details; everything also goes to the plasmashell log):
 | appearance value out of range     | clamped to the allowed range, and reported             |
 | appearance value of the wrong type | kept as it was, and reported                          |
 | alert rule without `sensorId`, unknown sensor, non-numeric threshold | skipped        |
+| alert rule with a negative or non-numeric deadband | treated as automatic, and reported |
 | broken JSON / unreadable file     | red error message, nothing is imported |
 
 Importing **replaces** the current sensor list, writes the appearance settings and replaces the
@@ -291,6 +315,10 @@ A few notes for anyone who wants to hack on it (or write a similar widget):
   and output may arrive in several chunks.
 * **Config pages** receive `cfg_<key>` initial properties which are read back when saving, so
   every editable value is named `cfg_*`.
+* Alert state is keyed by the rule's own content, not by its position: reading
+  `Plasmoid.configuration` re-evaluates the binding that builds the rule list even when the rules
+  did not change (a config map is not an ordinary property), and a per-index state reset there let
+  a second notification slip through a one-hour cooldown.
 * **Desktop notifications** also use the `executable` data source: a `gdbus call` to
   `org.freedesktop.Notifications.Notify`, with every argument passed through `ShellUtils.quote()`
   (the panel-spacer widget does the same). Alert rules are stored as one
@@ -304,6 +332,23 @@ A few notes for anyone who wants to hack on it (or write a similar widget):
   the content fits instead, measuring the natural width on a hidden copy of the view (measuring the
   visible one would feed back into itself and oscillate). The preview also lives outside the
   `Kirigami.FormLayout`, because a section item there does not stretch to the page width.
+* Configuration pages have **no `Plasmoid` object**: the dialog runs them in its own context, so
+  reading `Plasmoid.configuration` throws "ReferenceError: Plasmoid is not defined" and silently
+  kills the rest of that function (it broke export/import here until
+  `journalctl --user -u plasma-plasmashell` showed it - the offscreen test had stubbed `Plasmoid`,
+  which masked exactly the thing under test). A page declares the values it needs as `cfg_*`
+  properties instead: the dialog hands *every* config key to the page it shows
+  (`props["cfg_" + key] = config[key]`) and saves back the ones the page declares. That is why the
+  sensors page also declares the appearance keys and the alert rules - they are part of its JSON
+  file. Plasma additionally offers each key as `cfg_<key>Default`, which is why the log mentions
+  unknown `cfg_lineCountDefault`-style properties; that part is harmless.
+* Plasma's default tool tip layout caps `subText` at eight lines
+  (`org.kde.plasma.core/DefaultToolTip.qml`, `maximumLineCount: 8`), which silently drops the rest
+  of a long sensor list. `contents/ui/ToolTipContent.qml` is handed to the applet as `toolTipItem`
+  instead, wrapped in an invisible host so it cannot paint over the widget before the tool tip
+  adopts it. Careful: `toolTipItem` is a property of `PlasmoidItem` itself, *not* of the `Plasmoid`
+  context object - `Plasmoid.toolTipItem: ...` makes the whole applet fail to load with "Cannot
+  assign to non-existent property", which is what `journalctl --user -u plasma-plasmashell` shows.
 * `Kirigami.FormLayout` sizes its rows by the children's `implicitHeight`, and a `QQC2.Label`
   with `wrapMode` still reports its full unwrapped width as `implicitWidth`. Both behaviours
   bit the configuration pages — see the comments in `HintLabel.qml` and
@@ -313,7 +358,7 @@ A few notes for anyone who wants to hack on it (or write a similar widget):
 
 | Symptom                                                       | Cause / fix                                                                                     |
 | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| After an update the widget shows nothing, or is a tiny square | plasmashell's QML cache — restart plasmashell                                                  |
+| After an update the widget shows nothing, or is a tiny square | either plasmashell's QML cache (restart plasmashell) or a QML error: `journalctl --user -u plasma-plasmashell` prints the file and line |
 | A sensor always shows`--`                                   | that sensor id does not exist on this machine; check the picker                                 |
 | Colors look washed out                                        | that is the automatic contrast adjustment; turn *Dark/light* off to keep your colors untouched |
 | The widget is too wide                                        | fewer sensors, hide the names, smaller font, or the *Packed* layout                            |
@@ -325,13 +370,16 @@ A few notes for anyone who wants to hack on it (or write a similar widget):
 
 * Values are not padded to a fixed width, so their length can change as the numbers grow (the
   *aligned* layout at least keeps the columns themselves stable)
-* No thresholds yet
+* No graphs or history yet
 * UI strings are Chinese only so far
 
 ## Contributing
 
-Issues, screenshots of your own panel setup and pull requests are welcome. If you touch QML
-files, please run at least
+Issues, screenshots of your own panel setup and pull requests are welcome. User-visible changes
+belong in [CHANGELOG.md](CHANGELOG.md) under *Unreleased*. To release: move them into a new version
+section, bump `KPlugin.Version` in
+[`metadata.json`](org.mcdaliu.compactmonitor/metadata.json) to match, run `./package.sh`, then tag
+`v<version>` and attach the `.plasmoid` to the GitHub release (and upload it to store.kde.org). If you touch QML files, please run at least
 
 ```bash
 qmllint org.mcdaliu.compactmonitor/contents/ui/*.qml

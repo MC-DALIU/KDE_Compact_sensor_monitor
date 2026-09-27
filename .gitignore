@@ -1,0 +1,2 @@
+# Build artefacts (see package.sh) — attach them to a release, do not commit them
+*.plasmoid

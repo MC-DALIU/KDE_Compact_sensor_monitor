@@ -1,5 +1,5 @@
 /*
-    SPDX-FileCopyrightText: 2025 mcdaliu
+    SPDX-FileCopyrightText: 2026 mcdaliu
 
     SPDX-License-Identifier: GPL-2.0-or-later
 */
@@ -54,6 +54,7 @@ KCM.SimpleKCM {
             "condition": "above",
             "threshold": AlertRules.defaultThreshold(sensorId),
             "cooldown": 300,
+            "hysteresis": AlertRules.defaultHysteresis(),
             "enabled": true
         });
         root.rules = list;
@@ -79,13 +80,28 @@ KCM.SimpleKCM {
         root.pushToConfig();
     }
 
+    /*!
+        Text explaining when a rule arms again, e.g. "降到 76.0 °C 以下才重新提醒".
+    */
+    function recoveryText(rule, unit, unitKnown) {
+        const margin = AlertRules.effectiveHysteresis(rule);
+        if (margin <= 0) {
+            return i18n("回差为 0：数值贴着阈值抖动时会反复提醒");
+        }
+        const limit = rule.condition === "below" ? rule.threshold + margin : rule.threshold - margin;
+        const text = unitKnown ? Formatter.formatValue(limit, unit) : String(limit);
+        return rule.condition === "below"
+            ? i18n("升到 %1 以上才重新提醒", text)
+            : i18n("降到 %1 以下才重新提醒", text);
+    }
+
     // --------------------------------------------------------------------- UI
 
     ColumnLayout {
         spacing: Kirigami.Units.smallSpacing
 
         HintLabel {
-            text: i18n("达到阈值时发送桌面通知。同一条规则只在开始超出/低于阈值时通知一次，之后每过冷却时间最多再提醒一次，避免刷屏。")
+            text: i18n("达到阈值时发送桌面通知。提醒过一次后规则会先「解除武装」：数值要退回到阈值以外（退回的幅度由「回差」决定，默认按阈值的 5% 自动计算）才会再次提醒，所以数值在阈值附近来回跳动时不会反复通知。冷却时间则保证无论如何都不会比它更频繁地提醒。")
         }
 
         HintLabel {
@@ -121,95 +137,147 @@ KCM.SimpleKCM {
                     ? Formatter.formatValue(row.modelData.threshold, rowSensor.unit)
                     : ""
 
-                RowLayout {
+                ColumnLayout {
                     id: rowLayout
 
                     anchors.fill: parent
                     anchors.margins: Kirigami.Units.smallSpacing
-                    spacing: Kirigami.Units.smallSpacing
+                    spacing: Kirigami.Units.smallSpacing * 0.5
 
-                    ColumnLayout {
+                    RowLayout {
                         Layout.fillWidth: true
-                        Layout.minimumWidth: 0
-                        spacing: 0
+                        spacing: Kirigami.Units.smallSpacing
 
-                        QQC2.Label {
+                        ColumnLayout {
                             Layout.fillWidth: true
                             Layout.minimumWidth: 0
-                            text: {
-                                const auto = SensorNames.shortName(row.modelData.sensorId);
-                                if (auto.length > 0) {
-                                    return auto;
+                            spacing: 0
+
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
+                                text: {
+                                    const auto = SensorNames.shortName(row.modelData.sensorId);
+                                    if (auto.length > 0) {
+                                        return auto;
+                                    }
+                                    return row.sensorName.length > 0 ? row.sensorName : row.modelData.sensorId;
                                 }
-                                return row.sensorName.length > 0 ? row.sensorName : row.modelData.sensorId;
+                                elide: Text.ElideRight
+                                font.bold: true
                             }
-                            elide: Text.ElideRight
-                            font.bold: true
+
+                            QQC2.Label {
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 0
+                                text: row.sensorValue + "  ·  " + row.modelData.sensorId
+                                elide: Text.ElideMiddle
+                                opacity: 0.6
+                                font: Kirigami.Theme.smallFont
+                            }
+                        }
+
+                        QQC2.ComboBox {
+                            model: [i18n("高于"), i18n("低于")]
+                            currentIndex: row.modelData.condition === "below" ? 1 : 0
+                            onActivated: root.updateRule(row.index, {"condition": currentIndex === 1 ? "below" : "above"})
+
+                            QQC2.ToolTip.text: i18n("高于阈值提醒，还是低于阈值提醒")
+                            QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                         }
 
                         QQC2.Label {
-                            Layout.fillWidth: true
-                            Layout.minimumWidth: 0
-                            text: row.sensorValue + "  ·  " + row.modelData.sensorId
-                            elide: Text.ElideMiddle
+                            text: i18n("阈值")
+                            opacity: 0.8
+                        }
+
+                        QQC2.SpinBox {
+                            id: thresholdBox
+
+                            from: -1000000
+                            to: 1000000000
+                            value: row.modelData.threshold
+                            onValueModified: root.updateRule(row.index, {"threshold": value})
+
+                            QQC2.ToolTip.text: i18n("与传感器原始数值比较；右面显示它换算后的样子")
+                            QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                        }
+
+                        QQC2.Label {
+                            visible: row.thresholdText.length > 0
+                            text: row.thresholdText
                             opacity: 0.6
                             font: Kirigami.Theme.smallFont
                         }
+
+                        QQC2.CheckBox {
+                            text: i18n("启用")
+                            checked: row.modelData.enabled
+                            onToggled: root.updateRule(row.index, {"enabled": checked})
+                        }
+
+                        QQC2.ToolButton {
+                            icon.name: "edit-delete-remove"
+                            onClicked: root.removeRule(row.index)
+
+                            QQC2.ToolTip.text: i18n("删除这条告警")
+                            QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                        }
                     }
 
-                    QQC2.ComboBox {
-                        model: [i18n("高于"), i18n("低于")]
-                        currentIndex: row.modelData.condition === "below" ? 1 : 0
-                        onActivated: root.updateRule(row.index, {"condition": currentIndex === 1 ? "below" : "above"})
-                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: Kirigami.Units.smallSpacing
 
-                    QQC2.SpinBox {
-                        id: thresholdBox
+                        Item {
+                            Layout.fillWidth: true
+                        }
 
-                        from: -1000000
-                        to: 1000000000
-                        value: row.modelData.threshold
-                        onValueModified: root.updateRule(row.index, {"threshold": value})
+                        QQC2.Label {
+                            text: i18n("冷却")
+                            opacity: 0.8
+                        }
 
-                        QQC2.ToolTip.text: i18n("与传感器原始数值比较；右面显示它换算后的样子")
-                        QQC2.ToolTip.visible: hovered
-                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
-                    }
+                        QQC2.SpinBox {
+                            from: 10
+                            to: 86400
+                            stepSize: 10
+                            value: row.modelData.cooldown
+                            textFromValue: (value) => i18n("%1 秒", value)
+                            valueFromText: (text) => parseInt(text)
+                            onValueModified: root.updateRule(row.index, {"cooldown": value})
 
-                    QQC2.Label {
-                        visible: row.thresholdText.length > 0
-                        text: row.thresholdText
-                        opacity: 0.6
-                        font: Kirigami.Theme.smallFont
-                    }
+                            QQC2.ToolTip.text: i18n("冷却时间：这段时间内绝不会重复通知")
+                            QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                        }
 
-                    QQC2.SpinBox {
-                        from: 10
-                        to: 86400
-                        stepSize: 10
-                        value: row.modelData.cooldown
-                        textFromValue: (value) => i18n("%1 秒", value)
-                        valueFromText: (text) => parseInt(text)
-                        onValueModified: root.updateRule(row.index, {"cooldown": value})
+                        QQC2.Label {
+                            text: i18n("回差")
+                            opacity: 0.8
+                        }
 
-                        QQC2.ToolTip.text: i18n("冷却时间：这段时间内不重复通知")
-                        QQC2.ToolTip.visible: hovered
-                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
-                    }
+                        QQC2.SpinBox {
+                            from: 0
+                            to: 1000000000
+                            value: AlertRules.effectiveHysteresis(row.modelData)
+                            onValueModified: root.updateRule(row.index, {"hysteresis": value})
 
-                    QQC2.CheckBox {
-                        text: i18n("启用")
-                        checked: row.modelData.enabled
-                        onToggled: root.updateRule(row.index, {"enabled": checked})
-                    }
+                            QQC2.ToolTip.text: i18n("死区：数值要退回这么多才会再次提醒。默认按阈值的 5% 自动计算，0 表示关闭")
+                            QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                        }
 
-                    QQC2.ToolButton {
-                        icon.name: "edit-delete-remove"
-                        onClicked: root.removeRule(row.index)
-
-                        QQC2.ToolTip.text: i18n("删除这条告警")
-                        QQC2.ToolTip.visible: hovered
-                        QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
+                        QQC2.Label {
+                            Layout.maximumWidth: Kirigami.Units.gridUnit * 22
+                            text: root.recoveryText(row.modelData, rowSensor.unit, row.sensorReady)
+                            elide: Text.ElideRight
+                            opacity: 0.6
+                            font: Kirigami.Theme.smallFont
+                        }
                     }
                 }
             }

@@ -1,5 +1,5 @@
 /*
-    SPDX-FileCopyrightText: 2025 mcdaliu
+    SPDX-FileCopyrightText: 2026 mcdaliu
 
     SPDX-License-Identifier: GPL-2.0-or-later
 */
@@ -25,6 +25,30 @@ KCM.SimpleKCM {
     property var cfg_sensorLabels: []
     property var cfg_sensorColors: []
     property var cfg_sensorShowLabels: []
+
+    /*!
+        The appearance settings and alert rules are part of the exported file, so
+        this page declares them too: a config page has no Plasmoid object to read
+        the applet configuration from, but the configuration dialog hands every
+        cfg_ key to the page it is showing and saves the declared ones back.
+    */
+    property int cfg_lineCount: 2
+    property bool cfg_tableLayout: false
+    property int cfg_labelAlignment: 0
+    property int cfg_valueAlignment: 0
+    property bool cfg_autoFontSize: true
+    property int cfg_fontSize: 12
+    property string cfg_fontFamily: ""
+    property bool cfg_bold: false
+    property bool cfg_showNames: true
+    property int cfg_itemSpacing: 8
+    property string cfg_separator: ""
+    property bool cfg_showColorBar: false
+    property bool cfg_customTextColor: false
+    property string cfg_textColor: "#ffffff"
+    property bool cfg_autoAdaptColors: true
+    property int cfg_updateInterval: 1000
+    property var cfg_alerts: []
 
     /*!
         Single source of truth while the page is open: an array of
@@ -198,7 +222,7 @@ KCM.SimpleKCM {
         const result = {};
         for (let i = 0; i < root.appearanceSpec.length; ++i) {
             const key = root.appearanceSpec[i].key;
-            const value = Plasmoid.configuration[key];
+            const value = root["cfg_" + key];
             if (value !== undefined) {
                 result[key] = value;
             }
@@ -242,7 +266,7 @@ KCM.SimpleKCM {
                     value = value.substring(0, spec.maxLength);
                 }
             }
-            Plasmoid.configuration[spec.key] = value;
+            root["cfg_" + spec.key] = value;
             applied++;
         }
         return applied;
@@ -277,15 +301,25 @@ KCM.SimpleKCM {
             if (isNaN(cooldown) || cooldown < 1) {
                 cooldown = 300;
             }
+            let hysteresis = -1; // automatic
+            if (raw.hysteresis !== undefined && raw.hysteresis !== null && String(raw.hysteresis).length > 0) {
+                const margin = Number(raw.hysteresis);
+                if (isNaN(margin) || margin < 0) {
+                    problems.push(i18n("告警第 %1 项：回差无效，已改为自动", position));
+                } else {
+                    hysteresis = Math.round(margin);
+                }
+            }
             result.push({
                 "sensorId": id,
                 "condition": raw.condition === "below" ? "below" : "above",
                 "threshold": threshold,
                 "cooldown": Math.min(86400, Math.round(cooldown)),
-                "enabled": !(raw.enabled === false || raw.enabled === 0 || raw.enabled === "0" || raw.enabled === "false")
+                "enabled": !(raw.enabled === false || raw.enabled === 0 || raw.enabled === "0" || raw.enabled === "false"),
+                "hysteresis": hysteresis
             });
         }
-        Plasmoid.configuration.alerts = AlertRules.encodeList(result);
+        root.cfg_alerts = AlertRules.encodeList(result);
         return result.length;
     }
 
@@ -303,7 +337,7 @@ KCM.SimpleKCM {
                     "showLabel": entry.showLabel
                 };
             }),
-            "alerts": AlertRules.decodeList(Plasmoid.configuration.alerts)
+            "alerts": AlertRules.decodeList(root.cfg_alerts)
         };
         root.exportedPath = path;
         root.runShell("export", "printf %s " + ShellUtils.quote(JSON.stringify(payload, null, 2))

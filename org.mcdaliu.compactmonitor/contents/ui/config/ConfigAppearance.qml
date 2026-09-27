@@ -1,5 +1,5 @@
 /*
-    SPDX-FileCopyrightText: 2025 mcdaliu
+    SPDX-FileCopyrightText: 2026 mcdaliu
 
     SPDX-License-Identifier: GPL-2.0-or-later
 */
@@ -13,18 +13,26 @@ import "../ColorUtils.js" as ColorUtils
 
 import org.kde.kcmutils as KCM
 import org.kde.kirigami as Kirigami
-import org.kde.plasma.plasmoid
 
 KCM.SimpleKCM {
     id: root
 
     /*!
-        The sensors that are currently applied, used only for the preview.
+        The sensor list, used only for the preview.
+
+        It is declared here (and not read from the applet) because a config page
+        has no Plasmoid object: the configuration dialog hands every cfg_ key to
+        the page it shows, and writes back the ones the page declares.
     */
-    readonly property var appliedSensorIds: Plasmoid.configuration ? Plasmoid.configuration.sensorIds : []
-    readonly property var appliedSensorLabels: Plasmoid.configuration ? Plasmoid.configuration.sensorLabels : []
-    readonly property var appliedSensorColors: Plasmoid.configuration ? Plasmoid.configuration.sensorColors : []
-    readonly property var appliedSensorShowLabels: Plasmoid.configuration ? Plasmoid.configuration.sensorShowLabels : []
+    property var cfg_sensorIds: []
+    property var cfg_sensorLabels: []
+    property var cfg_sensorColors: []
+    property var cfg_sensorShowLabels: []
+
+    readonly property var appliedSensorIds: root.cfg_sensorIds || []
+    readonly property var appliedSensorLabels: root.cfg_sensorLabels || []
+    readonly property var appliedSensorColors: root.cfg_sensorColors || []
+    readonly property var appliedSensorShowLabels: root.cfg_sensorShowLabels || []
 
     //! whether the Plasma theme we are drawn on is a dark one
     readonly property bool themeIsDark: ColorUtils.isDark(Kirigami.Theme.backgroundColor)

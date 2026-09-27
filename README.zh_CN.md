@@ -37,9 +37,11 @@ Plasma 自带的「系统监视器」用文本模式（`org.kde.ksysguard.texton
 * **字体**：任意已安装字体、可加粗；字号可手动指定 6–48 像素，也可自动适应面板高度
 * **逐传感器颜色**，可选在数值前画一条小色条；并带**深浅色主题自动适配**，保证任何主题下都看得清
 * **传感器管理**：添加 / 删除 / 上下排序，可搜索的传感器选择器，逐个设置名称与颜色
-* **阈值告警**：传感器高于/低于设定值时发送桌面通知，带冷却时间，不会刷屏
+* **阈值告警**：传感器高于/低于设定值时发送桌面通知；带**回差**（死区）和冷却时间，
+  数值在阈值附近来回抖动也不会反复提醒
 * **导入 / 导出**：传感器、外观设置、告警规则一并存成 JSON 文件；导入时自动跳过有问题的项并汇总报告
-* **细节**：悬停提示列出全部数值、刷新间隔（100ms–10s）、传感器间距、可选分隔符、点击弹出大号视图
+* **细节**：悬停提示列出**全部**传感器（Plasma 自带的提示框布局只画前 8 行，所以本部件自己提供了
+  提示内容）、刷新间隔（100ms–10s）、传感器间距、可选分隔符、点击弹出大号视图
 * 右键 →「配置 紧凑监视器…」进入 Plasma 标准配置界面
 * 界面字符串目前只有中文，欢迎提交英文翻译
 
@@ -52,6 +54,10 @@ Plasma 自带的「系统监视器」用文本模式（`org.kde.ksysguard.texton
 | 配置 → 传感器                     |
 | ---------------------------------- |
 | ![传感器页](Screenshots/Menu2.png) |
+
+| 配置 → 告警                       |
+| --------------------------------- |
+| ![告警页](Screenshots/Menu3.png)  |
 
 ## 运行要求
 
@@ -84,6 +90,17 @@ cd plasma-compact-monitor
 kpackagetool6 --type Plasma/Applet --install org.mcdaliu.compactmonitor
 # 更新时用 --upgrade，或先 --remove 再 --install
 ```
+
+也可以直接安装打包文件（GitHub Release 里的附件，或从 store.kde.org 下载的）：
+
+```bash
+./package.sh                                        # 生成 compact-monitor.plasmoid
+kpackagetool6 --type Plasma/Applet --install compact-monitor.plasmoid
+```
+
+或者在面板上点右键 →「添加部件…」→「**从本地文件安装小部件…**」，选中这个 `.plasmoid` 文件。
+那个对话框和 KDE Store 需要的都是**单个归档**（`metadata.json` 在归档根目录），所以刚 clone 下来的
+仓库目录不能这样安装——源码安装请用 `install.sh`。
 
 然后在面板上点右键 →「添加部件…」→ 搜索 **紧凑监视器**。
 
@@ -129,8 +146,8 @@ kpackagetool6 --type Plasma/Applet --install org.mcdaliu.compactmonitor
 
 ### 告警
 
-每行一条规则：传感器（带实时数值和 ID）、*高于* / *低于*、阈值、冷却时间（秒）、启用勾选框、删除
-按钮。「添加告警…」从可搜索的传感器树里挑一个；同一个传感器可以加多条规则（例如电量低于 20、
+每条规则占两行：传感器（带实时数值和 ID）、*高于* / *低于*、阈值、冷却时间（秒）、回差、启用勾选框、
+删除按钮。回差右边的灰字会告诉你这条规则什么时候才会重新提醒。「添加告警…」从可搜索的传感器树里挑一个；同一个传感器可以加多条规则（例如电量低于 20、
 高于 90）。阈值右边的灰字是它按传感器单位换算后的样子，行里的实时数值可以帮你判断阈值该填多少。
 
 ## 阈值告警
@@ -139,12 +156,19 @@ kpackagetool6 --type Plasma/Applet --install org.mcdaliu.compactmonitor
 
 * **条件** —— *高于* 或 *低于*，与传感器的**原始数值**比较（也就是界面显示的那个数字，尚未做单位换算；
   输入框右边会显示换算后的值，方便对照）
-* **冷却时间** —— 通知过一次后，这条规则在这么多秒内保持安静
+* **回差（死区）** —— 数值要退回到什么程度，规则才允许再次提醒。默认按阈值的 5% 自动计算：
+  「CPU 温度高于 80」这条规则要等温度掉回 76 以下才会重新武装，所以 81/79 来回横跳只会提醒一次；
+  填 `0` 表示关闭回差。
+* **冷却时间** —— 无论发生什么，两次通知的间隔都不会短于这个时间
 * **启用** —— 临时关掉规则而不用删除
 
+触发分两步：规则处于**已武装**状态时，数值越过阈值就提醒，然后规则**解除武装**，直到数值退回阈值
+以外、且幅度超过回差，才会重新武装。冷却时间则是另一道独立的限制，保证提醒频率不会超过它。
+
 通知走系统的桌面通知服务（`org.freedesktop.Notifications`），所以外观和 Plasma 的其它通知一样，
-也受「系统设置 → 通知」影响。规则只在**开始**满足条件时通知一次，之后每过冷却时间最多再提醒一次；
-目前没有滞回，所以数值恰好停在阈值附近时可能每个冷却周期通知一次。
+也受「系统设置 → 通知」影响。触发后的通知长这样：
+
+![阈值告警通知：「CPU 超过阈值 / 当前 100.0%（阈值 90）」](Screenshots/Alert.png)
 
 规则保存在小部件配置里，也会随导出的 JSON 一起走。
 
@@ -210,10 +234,14 @@ qdbus6 --literal org.kde.ksystemstats1 /org/kde/ksystemstats1 \
     { "sensorId": "cpu/all/usage", "label": "CPU", "color": "#e5a50a", "showLabel": true }
   ],
   "alerts": [
-    { "sensorId": "cpu/all/usage", "condition": "above", "threshold": 90, "cooldown": 300, "enabled": true }
+    { "sensorId": "cpu/all/usage", "condition": "above", "threshold": 90, "cooldown": 300,
+      "enabled": true, "hysteresis": -1 }
   ]
 }
 ```
+
+告警规则里的 `hysteresis` 是回差：填数字表示具体数值，`0` 表示关闭，`-1`（或省略）表示按阈值的
+5% 自动计算。
 
 导入时也接受直接给一个数组。`appearance` 和 `alerts` 两段都可以省略，所以旧版本导出的文件照样能导入。
 只有 `sensorId` 是必需的，`label`/`color`/`showLabel` 都可以省略
@@ -226,6 +254,10 @@ qdbus6 --literal org.kde.ksystemstats1 /org/kde/ksystemstats1 \
 | 本机没有这个传感器 ID      | 跳过                             |
 | 同一个 ID 出现多次         | 后面的跳过                       |
 | 颜色无法识别               | 保留该项、忽略颜色（算一条提示） |
+| 外观设置的数值超出范围     | 收敛到允许范围内并报告           |
+| 外观设置的类型不对         | 保持原值并报告                   |
+| 告警规则缺少 `sensorId`、传感器不存在、阈值不是数字 | 跳过 |
+| 告警规则的回差是负数或不是数字 | 按自动处理，并报告           |
 | JSON 解析失败 / 文件读不到 | 红色错误提示，不导入任何内容     |
 
 导入会**替换**当前传感器列表、写入外观设置、替换告警规则。外观改动会立刻写进小部件配置，所以下次
@@ -260,12 +292,31 @@ qdbus6 --literal org.kde.ksystemstats1 /org/kde/ksystemstats1 \
   不均。改成缩小**字号**直到内容放得下，宽度用一个隐藏副本测量（量可见的那个会和结果互相影响、
   来回抖动）。另外预览没放在 `Kirigami.FormLayout` 里——那里的 section 项不会拉伸到页面宽度，
   预览会一直只有表单隐式宽度那么宽。
+* 告警状态按**规则内容本身**做 key，而不是按它在列表里的位置：读 `Plasmoid.configuration`
+  会让"规则列表"那个绑定重新求值（即使规则内容没变——配置映射终究不是普通属性），如果这时候重置
+  状态，一小时冷却也拦不住第二次通知。
 * 桌面通知同样走 `executable` 数据引擎：`gdbus call` 调
   `org.freedesktop.Notifications.Notify`，每个参数都用 `ShellUtils.quote()` 包好（面板上的
-  panel-spacer 部件也是这么做的）。告警规则按 `sensorId|条件|阈值|冷却|启用` 一条字符串存在
+  panel-spacer 部件也是这么做的）。告警规则按 `sensorId|条件|阈值|冷却|启用|回差` 一条字符串存在
   StringList 里，由 `contents/ui/AlertRules.js` 编解码。
 * QML 的 JavaScript 里不要在 `const` / `let` 声明之前使用它：那是暂时性死区错误，而且发生在信号
   处理函数里时，函数剩下的部分会被静默跳过（调告警时被这个坑了一晚上）。
+* 配置页里**没有 `Plasmoid` 对象**：配置对话框用自己的上下文加载配置页，所以读
+  `Plasmoid.configuration` 会抛 "ReferenceError: Plasmoid is not defined"，并且**静默**打断该函数
+  剩下的部分（本项目的导入导出就是这么坏的，最后靠
+  `journalctl --user -u plasma-plasmashell` 才看出来——而 offscreen 测试里我把 `Plasmoid` 打了桩，
+  恰好把被测对象本身替掉了）。页面需要什么值，就声明成 `cfg_*` 属性：对话框会把**每一个**配置键
+  交给当前页面（`props["cfg_" + key] = config[key]`），保存时把页面声明过的键写回。所以传感器页
+  也声明了外观设置和告警规则——它们要跟着它的 JSON 文件一起走。另外 Plasma 还会额外提供
+  `cfg_<key>Default`（给"恢复默认"用），所以日志里会抱怨 `cfg_lineCountDefault` 之类未知属性，
+  这部分无害。
+* Plasma 自带的提示框布局把 `subText` 限制在 8 行（`org.kde.plasma.core/DefaultToolTip.qml` 里的
+  `maximumLineCount: 8`），传感器一多就会被悄悄截断。所以本部件把
+  `contents/ui/ToolTipContent.qml` 作为 `toolTipItem` 交给外壳；它放在一个不可见的宿主里，这样在
+  提示框接管它之前不会画到部件上。**注意**：`toolTipItem` 是 `PlasmoidItem` 自己的属性，**不是**
+  `Plasmoid` 上下文对象的属性——写成 `Plasmoid.toolTipItem: ...` 会让整个部件加载失败并报
+  "Cannot assign to non-existent property"，这个报错可以用
+  `journalctl --user -u plasma-plasmashell` 看到。
 * 配置页里所有会换行的说明文字都用 `HintLabel`：`QQC2.Label` 打开 `wrapMode` 后 `implicitWidth`
   仍是不换行的整行宽度，直接放进 `Kirigami.FormLayout` 会把整个表单撑宽，窗口比它窄时右侧内容就被
   切掉。同理，传感器列表里带 `elide` 的长 ID 也必须显式 `Layout.minimumWidth: 0`。
@@ -274,7 +325,7 @@ qdbus6 --literal org.kde.ksystemstats1 /org/kde/ksystemstats1 \
 
 | 现象                                       | 原因 / 处理                                            |
 | ------------------------------------------ | ------------------------------------------------------ |
-| 更新后小部件什么都不显示，或变成一个小方块 | plasmashell 的 QML 缓存 —— 重启 plasmashell          |
+| 更新后小部件什么都不显示，或变成一个小方块 | 要么是 plasmashell 的 QML 缓存（重启 plasmashell），要么是 QML 报错：`journalctl --user -u plasma-plasmashell` 会打印出错的文件和行号 |
 | 某个传感器一直显示 `--`                   | 本机没有这个传感器 ID，用选择器确认一下                |
 | 颜色看起来发灰                             | 那是自动对比度调整，把「深浅色」关掉就保持原色         |
 | 小部件太宽                                 | 减少传感器、关掉名称、调小字号，或改用「紧凑」排列     |
@@ -283,13 +334,16 @@ qdbus6 --literal org.kde.ksystemstats1 /org/kde/ksystemstats1 \
 ## 已知限制 / 后续可做
 
 * 数值没有定宽对齐，长度会随数字变化（整齐对齐至少能保证列本身稳定）
-* 告警没有滞回：数值停在阈值附近时可能每个冷却周期通知一次
 * 还不支持曲线、历史图表
 * 界面字符串目前只有中文
 
 ## 参与贡献
 
-欢迎提 issue、贴自己面板的截图、提 PR。改 QML 的话请至少跑一下
+欢迎提 issue、贴自己面板的截图、提 PR。用户可见的改动请写进
+[CHANGELOG.md](CHANGELOG.md) 的 *Unreleased* 段。发版流程：归入新的版本段 → 把
+[`metadata.json`](org.mcdaliu.compactmonitor/metadata.json) 里的 `KPlugin.Version` 改成同一个版本号
+→ 跑 `./package.sh` → 打 `v<版本号>` 的 Git tag 并把 `.plasmoid` 作为附件传到 GitHub Release
+（顺便上传到 store.kde.org）。改 QML 的话请至少跑一下
 
 ```bash
 qmllint org.mcdaliu.compactmonitor/contents/ui/*.qml

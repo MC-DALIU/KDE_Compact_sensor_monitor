@@ -1,5 +1,5 @@
 /*
-    SPDX-FileCopyrightText: 2025 mcdaliu
+    SPDX-FileCopyrightText: 2026 mcdaliu
 
     SPDX-License-Identifier: GPL-2.0-or-later
 */
@@ -53,6 +53,32 @@ PlasmoidItem {
     toolTipMainText: i18n("紧凑监视器")
     toolTipSubText: root.buildToolTip()
 
+    /*!
+        Plasma's default tool tip layout shows at most eight lines of subText
+        (core/DefaultToolTip.qml, maximumLineCount: 8), which quietly hides every
+        sensor after the eighth one. A tool tip item replaces that layout and has
+        no such limit.
+
+        The item lives inside an invisible host so that it cannot paint over the
+        widget before the tool tip takes it over.
+    */
+    toolTipItem: toolTipHost.content
+
+    Item {
+        id: toolTipHost
+
+        visible: false
+
+        readonly property alias content: toolTipContent
+
+        ToolTipContent {
+            id: toolTipContent
+
+            title: root.toolTipMainText
+            body: root.toolTipSubText
+        }
+    }
+
     // Sensors that are only used to build the tool tip, the visible
     // representations create their own ones.
     Instantiator {
@@ -88,10 +114,31 @@ PlasmoidItem {
     // ------------------------------------------------------------ threshold alerts
 
     readonly property var alertRules: AlertRules.decodeList(Plasmoid.configuration.alerts)
+
+    /*!
+        Alert state, keyed by the rule itself rather than by its position.
+
+        Reading Plasmoid.configuration can re-evaluate this binding even when the
+        rules did not change (a config map is not a normal property), and keying
+        by content keeps the "already notified" state across those re-evaluations
+        instead of firing again.
+    */
     property var alertState: ({})
 
     //! rules are evaluated as soon as a value arrives, even while the widget is not expanded
-    onAlertRulesChanged: root.alertState = ({})
+    onAlertRulesChanged: {
+        const alive = {};
+        for (let i = 0; i < root.alertRules.length; ++i) {
+            alive[AlertRules.encode(root.alertRules[i])] = true;
+        }
+        const kept = {};
+        for (const key in root.alertState) {
+            if (alive[key] === true) {
+                kept[key] = root.alertState[key];
+            }
+        }
+        root.alertState = kept;
+    }
 
     Instantiator {
         id: alertSensors
@@ -144,8 +191,11 @@ PlasmoidItem {
     }
 
     /*!
-        Notifies when a rule starts to match, and then at most once per cooldown
-        as long as it keeps matching.
+        Notifies when a rule starts to match. A value that hovers around the
+        threshold does not notify over and over: after firing, the rule is
+        disarmed until the value comes back past the threshold by the rule's
+        deadband (hysteresis), and on top of that a notification is never sent
+        more often than once per cooldown.
     */
     function evaluateAlert(index) {
         const rules = root.alertRules;
@@ -165,17 +215,28 @@ PlasmoidItem {
             return;
         }
 
+        const hysteresis = AlertRules.effectiveHysteresis(rule);
         const triggered = AlertRules.isTriggered(rule, value);
-        const state = root.alertState[index] !== undefined
-                ? root.alertState[index]
-                : {"active": false, "lastNotified": 0};
+        const recovered = AlertRules.hasRecovered(rule, value, hysteresis);
+
+        const key = AlertRules.encode(rule);
+        const state = root.alertState[key] !== undefined
+                ? root.alertState[key]
+                : {"armed": true, "lastNotified": 0};
         const now = Date.now();
-        if (triggered && (!state.active || (now - state.lastNotified) >= rule.cooldown * 1000)) {
-            state.lastNotified = now;
-            root.notifyAlert(root.sensorLabel(rule.sensorId, sensor), rule, sensor);
+
+        if (triggered && state.armed) {
+            // disarm first: the deadband has to be crossed before this rule may
+            // fire again, however often the value wobbles over the threshold
+            state.armed = false;
+            if ((now - state.lastNotified) >= rule.cooldown * 1000) {
+                state.lastNotified = now;
+                root.notifyAlert(root.sensorLabel(rule.sensorId, sensor), rule, sensor);
+            }
+        } else if (!triggered && recovered) {
+            state.armed = true;
         }
-        state.active = triggered;
-        root.alertState[index] = state;
+        root.alertState[key] = state;
     }
 
     /*!
