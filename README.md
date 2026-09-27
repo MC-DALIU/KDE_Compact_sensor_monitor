@@ -50,6 +50,8 @@ text and hugs its content: the screenshot above is ten sensors in two lines.
   notifying over and over
 * **Import / export** sensors, appearance and alert rules as a JSON file; broken entries are
   skipped and reported instead of failing the whole import
+* **Languages**: Chinese and English ship with it, the language follows the system by default and
+  can also be set per widget; adding a language is one small file, see [Translating](#translating)
 * **Details**: hover tooltip listing every sensor (Plasma's own tooltip layout stops after eight
   lines, so the widget supplies its own), custom refresh interval (100 ms – 10 s),
   item spacing, an optional separator character, click for a larger popup view
@@ -81,6 +83,24 @@ No compilation, no C++, no build system: it is a pure QML plasmoid.
 
 ## Installation
 
+The easiest way is to download the package file — from
+[store.kde.org](https://store.kde.org/p/2374718) or from a [release](https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/releases) — and install
+that:
+
+```bash
+kpackagetool6 --type Plasma/Applet --install compact-monitor.plasmoid
+```
+
+or right-click the panel → **Add Widgets…** → **Install Widget From Local File…** and pick the
+`.plasmoid` file.
+
+> [!NOTE]
+> Plasma's *Add Widgets… → Get New Widgets…* does **not** list this widget (third-party Plasma 6
+> entries are not offered there), so please download the file from the store page and install it
+> manually as above.
+
+To use the sources instead:
+
 ```bash
 git clone https://github.com/MC-DALIU/KDE_Compact_sensor_monitor.git plasma-compact-monitor
 cd plasma-compact-monitor
@@ -102,16 +122,9 @@ kpackagetool6 --type Plasma/Applet --install org.mcdaliu.compactmonitor
 # updating: use --upgrade, or --remove first
 ```
 
-Or install the packaged file - the one attached to a release or downloaded from store.kde.org:
-
-```bash
-./package.sh                                        # builds compact-monitor.plasmoid
-kpackagetool6 --type Plasma/Applet --install compact-monitor.plasmoid
-```
-
-or right-click the panel → **Add Widgets…** → **Install Widget From Local File…** and pick the
-`.plasmoid` file. That dialog and the store need a single archive with `metadata.json` at its root,
-so a freshly cloned repository cannot be installed that way - use `install.sh` for the sources.
+`./package.sh` builds that same archive from a checkout. The panel dialog and the store both need a
+single archive with `metadata.json` at its root, so a freshly cloned repository cannot be installed
+that way.
 
 Then right-click the panel → **Add Widgets…** → search for *Compact Monitor*.
 
@@ -144,6 +157,7 @@ Right-click the widget → *Configure Compact Monitor…*. There are two pages.
 | Text color            | custom color for all text, otherwise every sensor uses its own color                  |
 | Dark/light            | automatically darken colors on light themes and brighten them on dark ones            |
 | Color bar             | draw a small colored bar in front of sensors that have a color                        |
+| Language              | *Follow the system* or any language that has a file (Chinese and English ship with it) |
 | Refresh interval      | 100–10000 ms                                                                         |
 
 The page starts with a live preview built from the *currently applied* sensor list, so
@@ -342,6 +356,10 @@ A few notes for anyone who wants to hack on it (or write a similar widget):
   sensors page also declares the appearance keys and the alert rules - they are part of its JSON
   file. Plasma additionally offers each key as `cfg_<key>Default`, which is why the log mentions
   unknown `cfg_lineCountDefault`-style properties; that part is harmless.
+* Translations are one QML file per language in `contents/i18n/`, looked up by a singleton
+  (`contents/ui/i18n/I18n.qml`) whose `strings` property the user interface reads in its bindings, so
+  a language change re-evaluates the whole interface without restarting anything. See
+  [Translating](#translating) for why it is not `i18n()`/`.po` files.
 * Plasma's default tool tip layout caps `subText` at eight lines
   (`org.kde.plasma.core/DefaultToolTip.qml`, `maximumLineCount: 8`), which silently drops the rest
   of a long sensor list. `contents/ui/ToolTipContent.qml` is handed to the applet as `toolTipItem`
@@ -371,7 +389,41 @@ A few notes for anyone who wants to hack on it (or write a similar widget):
 * Values are not padded to a fixed width, so their length can change as the numbers grow (the
   *aligned* layout at least keeps the columns themselves stable)
 * No graphs or history yet
-* UI strings are Chinese only so far
+* Only Chinese and English are translated so far — see [Translating](#translating), it is one file
+  per language
+
+## Translating
+
+Translations live in `org.mcdaliu.compactmonitor/contents/i18n/`, one file per language — `en.qml`
+for English:
+
+```qml
+import QtQuick
+
+QtObject {
+    readonly property var strings: ({
+        "外观": "Appearance",
+        "%1 秒": "%1 seconds"
+    })
+}
+```
+
+The keys are the Chinese source strings of the user interface and have to stay as they are; `%1`,
+`%2`, … are replaced by the arguments of the call, so a translation may put them in any order. A key
+that is missing from the file falls back to the Chinese source string, which means a half-finished
+translation is perfectly usable.
+
+To add a language:
+
+1. copy `contents/i18n/en.qml` to `<code>.qml`, using the code Qt knows (`de`, `fr`, `pt_BR`, …)
+2. translate the values, leaving the keys alone
+3. add the language to `supportedLanguages` in `contents/ui/i18n/I18n.qml`
+4. test it: the widget follows the system language, and the *Appearance* page has a language selector
+
+Chinese needs no file at all — the source strings *are* the Chinese text. For context: translations
+are looked up by this mapping rather than through `i18n()`, because a plasmoid cannot change the
+language of `i18n()` at runtime from QML, and the JSON files one might expect cannot be read either
+(Qt refuses `file://` XHR without `QML_XHR_ALLOW_FILE_READ=1`).
 
 ## Contributing
 

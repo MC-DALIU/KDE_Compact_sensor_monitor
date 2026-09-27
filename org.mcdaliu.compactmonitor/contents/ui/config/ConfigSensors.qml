@@ -13,6 +13,7 @@ import "../AlertRules.js" as AlertRules
 import "../SensorNames.js" as SensorNames
 import "../ShellUtils.js" as ShellUtils
 
+import "../i18n"
 import org.kde.kcmutils as KCM
 import org.kde.kirigami as Kirigami
 import org.kde.ksysguard.sensors as Sensors
@@ -20,6 +21,8 @@ import org.kde.plasma.plasma5support as Plasma5Support
 
 KCM.SimpleKCM {
     id: root
+
+    property string cfg_uiLanguage: ""
 
     property var cfg_sensorIds: []
     property var cfg_sensorLabels: []
@@ -97,10 +100,13 @@ KCM.SimpleKCM {
     property string importedPath: ""
 
     readonly property url defaultExportUrl: root.homePath.length > 0
-        ? "file://" + root.homePath + "/compact-monitor-sensors.json"
+        ? "file://" + root.homePath + "/compact-monitor-config.json"
         : ""
 
+    onCfg_uiLanguageChanged: I18n.setLanguage(root.cfg_uiLanguage)
+
     Component.onCompleted: {
+        I18n.setLanguage(root.cfg_uiLanguage);
         root.loadFromConfig();
         // only used to give the file dialogs a sensible starting folder
         root.runShell("home", "printf %s \"$HOME\"");
@@ -150,17 +156,17 @@ KCM.SimpleKCM {
         if (action === "export") {
             if (exitCode !== 0) {
                 root.showMessage(Kirigami.MessageType.Error,
-                                 i18n("导出失败：%1", error.trim().length > 0 ? error.trim() : i18n("未知错误")));
+                                 I18n.text("导出失败：%1", error.trim().length > 0 ? error.trim() : I18n.text("未知错误")));
             } else {
                 root.showMessage(Kirigami.MessageType.Positive,
-                                 i18n("已导出 %1 个传感器到 %2", root.entries.length, root.exportedPath));
+                                 I18n.text("已导出 %1 个传感器到 %2", root.entries.length, root.exportedPath));
             }
             return;
         }
         if (action === "import") {
             if (exitCode !== 0) {
                 root.showMessage(Kirigami.MessageType.Error,
-                                 i18n("读取文件失败：%1", error.trim().length > 0 ? error.trim() : i18n("未知错误")));
+                                 I18n.text("读取文件失败：%1", error.trim().length > 0 ? error.trim() : I18n.text("未知错误")));
                 return;
             }
             root.applyImported(root.importedPath, output);
@@ -245,19 +251,19 @@ KCM.SimpleKCM {
             } else if (spec.type === "int") {
                 const number = Number(raw);
                 if (isNaN(number)) {
-                    problems.push(i18n("外观设置 %1 不是数字，已忽略", spec.key));
+                    problems.push(I18n.text("外观设置 %1 不是数字，已忽略", spec.key));
                     continue;
                 }
                 value = Math.round(number);
                 const clamped = Math.min(spec.max, Math.max(spec.min, value));
                 if (clamped !== value) {
-                    problems.push(i18n("外观设置 %1 超出范围，已调整为 %2", spec.key, clamped));
+                    problems.push(I18n.text("外观设置 %1 超出范围，已调整为 %2", spec.key, clamped));
                     value = clamped;
                 }
             } else if (spec.color === true) {
                 value = root.normalizeColor(raw);
                 if (value.length === 0) {
-                    problems.push(i18n("外观设置 %1 颜色无效，已忽略", spec.key));
+                    problems.push(I18n.text("外观设置 %1 颜色无效，已忽略", spec.key));
                     continue;
                 }
             } else {
@@ -280,21 +286,21 @@ KCM.SimpleKCM {
             const raw = list[i];
             const position = i + 1;
             if (raw === null || typeof raw !== "object") {
-                problems.push(i18n("告警第 %1 项不是对象", position));
+                problems.push(I18n.text("告警第 %1 项不是对象", position));
                 continue;
             }
             const id = (raw.sensorId === undefined || raw.sensorId === null) ? "" : String(raw.sensorId);
             if (id.length === 0) {
-                problems.push(i18n("告警第 %1 项缺少 sensorId", position));
+                problems.push(I18n.text("告警第 %1 项缺少 sensorId", position));
                 continue;
             }
             if (knownCount > 0 && known[id] !== true) {
-                problems.push(i18n("告警第 %1 项：本机没有传感器 %2", position, id));
+                problems.push(I18n.text("告警第 %1 项：本机没有传感器 %2", position, id));
                 continue;
             }
             const threshold = Number(raw.threshold);
             if (isNaN(threshold)) {
-                problems.push(i18n("告警第 %1 项：阈值无效", position));
+                problems.push(I18n.text("告警第 %1 项：阈值无效", position));
                 continue;
             }
             let cooldown = Number(raw.cooldown);
@@ -305,7 +311,7 @@ KCM.SimpleKCM {
             if (raw.hysteresis !== undefined && raw.hysteresis !== null && String(raw.hysteresis).length > 0) {
                 const margin = Number(raw.hysteresis);
                 if (isNaN(margin) || margin < 0) {
-                    problems.push(i18n("告警第 %1 项：回差无效，已改为自动", position));
+                    problems.push(I18n.text("告警第 %1 项：回差无效，已改为自动", position));
                 } else {
                     hysteresis = Math.round(margin);
                 }
@@ -354,7 +360,7 @@ KCM.SimpleKCM {
         try {
             data = JSON.parse(text);
         } catch (e) {
-            root.showMessage(Kirigami.MessageType.Error, i18n("无法解析 %1：%2", path, e.message));
+            root.showMessage(Kirigami.MessageType.Error, I18n.text("无法解析 %1：%2", path, e.message));
             return;
         }
 
@@ -365,7 +371,7 @@ KCM.SimpleKCM {
             list = data.sensors;
         }
         if (list === null) {
-            root.showMessage(Kirigami.MessageType.Error, i18n("文件 %1 里没有找到传感器列表。", path));
+            root.showMessage(Kirigami.MessageType.Error, I18n.text("文件 %1 里没有找到传感器列表。", path));
             return;
         }
 
@@ -379,20 +385,20 @@ KCM.SimpleKCM {
             const raw = list[i];
             const position = i + 1;
             if (raw === null || typeof raw !== "object") {
-                problems.push(i18n("第 %1 项不是对象", position));
+                problems.push(I18n.text("第 %1 项不是对象", position));
                 continue;
             }
             const id = (raw.sensorId === undefined || raw.sensorId === null) ? "" : String(raw.sensorId);
             if (id.length === 0) {
-                problems.push(i18n("第 %1 项缺少 sensorId", position));
+                problems.push(I18n.text("第 %1 项缺少 sensorId", position));
                 continue;
             }
             if (knownCount > 0 && known[id] !== true) {
-                problems.push(i18n("第 %1 项：本机没有传感器 %2", position, id));
+                problems.push(I18n.text("第 %1 项：本机没有传感器 %2", position, id));
                 continue;
             }
             if (seen[id] === true) {
-                problems.push(i18n("第 %1 项：%2 重复", position, id));
+                problems.push(I18n.text("第 %1 项：%2 重复", position, id));
                 continue;
             }
             seen[id] = true;
@@ -401,7 +407,7 @@ KCM.SimpleKCM {
             if (raw.color !== undefined && raw.color !== null && String(raw.color).length > 0) {
                 color = root.normalizeColor(raw.color);
                 if (color.length === 0) {
-                    problems.push(i18n("第 %1 项：颜色 %2 无法识别，已忽略", position, String(raw.color)));
+                    problems.push(I18n.text("第 %1 项：颜色 %2 无法识别，已忽略", position, String(raw.color)));
                 }
             }
 
@@ -417,7 +423,7 @@ KCM.SimpleKCM {
 
         if (entries.length === 0) {
             root.showMessage(Kirigami.MessageType.Error,
-                             i18n("没有可导入的传感器。") + root.problemText(problems));
+                             I18n.text("没有可导入的传感器。") + root.problemText(problems));
             return;
         }
 
@@ -437,15 +443,15 @@ KCM.SimpleKCM {
         }
 
         const summary = appearanceCount > 0
-                ? i18n("已导入 %1 个传感器，外观设置也已更新。", entries.length)
-                : i18n("已导入 %1 个传感器。", entries.length);
-        const alerts = alertCount > 0 ? i18n("告警规则 %1 条。", alertCount) : "";
+                ? I18n.text("已导入 %1 个传感器，外观设置也已更新。", entries.length)
+                : I18n.text("已导入 %1 个传感器。", entries.length);
+        const alerts = alertCount > 0 ? I18n.text("告警规则 %1 条。", alertCount) : "";
 
         if (problems.length === 0) {
             root.showMessage(Kirigami.MessageType.Positive, summary + (alerts.length > 0 ? " " + alerts : ""));
         } else {
             root.showMessage(Kirigami.MessageType.Warning,
-                             i18n("已导入 %1 个传感器，%2 项被跳过或修正：", entries.length, problems.length)
+                             I18n.text("已导入 %1 个传感器，%2 项被跳过或修正：", entries.length, problems.length)
                              + root.problemText(problems));
         }
     }
@@ -590,13 +596,13 @@ KCM.SimpleKCM {
         }
 
         HintLabel {
-            text: i18n("用右侧的箭头调整顺序。文字框中可以给传感器起一个短名字，留空则使用自动识别的短名称（如 CPU、RAM、DISK）。")
+            text: I18n.text("用右侧的箭头调整顺序。文字框中可以给传感器起一个短名字，留空则使用自动识别的短名称（如 CPU、RAM、DISK）。")
         }
 
         HintLabel {
             Layout.topMargin: Kirigami.Units.smallSpacing
             visible: root.entries.length === 0
-            text: i18n("还没有添加任何传感器，点击下面的“添加传感器…”开始吧。")
+            text: I18n.text("还没有添加任何传感器，点击下面的“添加传感器…”开始吧。")
         }
 
         Repeater {
@@ -638,7 +644,7 @@ KCM.SimpleKCM {
                             colorDialog.openWithColor(row.modelData.color);
                         }
 
-                        QQC2.ToolTip.text: i18n("设置该传感器的颜色")
+                        QQC2.ToolTip.text: I18n.text("设置该传感器的颜色")
                         QQC2.ToolTip.visible: hovered
                         QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
 
@@ -684,21 +690,21 @@ KCM.SimpleKCM {
                             if (auto.length > 0) {
                                 return auto;
                             }
-                            return row.sensorName.length > 0 ? row.sensorName : i18n("默认名称");
+                            return row.sensorName.length > 0 ? row.sensorName : I18n.text("默认名称");
                         }
                         onTextEdited: root.setEntryLabel(row.index, text)
 
-                        QQC2.ToolTip.text: i18n("留空则使用传感器自带名称")
+                        QQC2.ToolTip.text: I18n.text("留空则使用传感器自带名称")
                         QQC2.ToolTip.visible: hovered
                         QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                     }
 
                     QQC2.CheckBox {
-                        text: i18n("名称")
+                        text: I18n.text("名称")
                         checked: row.modelData.showLabel
                         onToggled: root.setEntryShowLabel(row.index, checked)
 
-                        QQC2.ToolTip.text: i18n("是否显示名称，只显示数值时可以更紧凑")
+                        QQC2.ToolTip.text: I18n.text("是否显示名称，只显示数值时可以更紧凑")
                         QQC2.ToolTip.visible: hovered
                         QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                     }
@@ -707,7 +713,7 @@ KCM.SimpleKCM {
                         icon.name: "arrow-up"
                         enabled: row.index > 0
                         onClicked: root.moveEntry(row.index, -1)
-                        QQC2.ToolTip.text: i18n("上移")
+                        QQC2.ToolTip.text: I18n.text("上移")
                         QQC2.ToolTip.visible: hovered
                     }
 
@@ -715,14 +721,14 @@ KCM.SimpleKCM {
                         icon.name: "arrow-down"
                         enabled: row.index < root.entries.length - 1
                         onClicked: root.moveEntry(row.index, 1)
-                        QQC2.ToolTip.text: i18n("下移")
+                        QQC2.ToolTip.text: I18n.text("下移")
                         QQC2.ToolTip.visible: hovered
                     }
 
                     QQC2.ToolButton {
                         icon.name: "edit-delete-remove"
                         onClicked: root.removeEntry(row.index)
-                        QQC2.ToolTip.text: i18n("移除")
+                        QQC2.ToolTip.text: I18n.text("移除")
                         QQC2.ToolTip.visible: hovered
                     }
                 }
@@ -736,13 +742,13 @@ KCM.SimpleKCM {
 
             QQC2.Button {
                 icon.name: "list-add"
-                text: i18n("添加传感器…")
+                text: I18n.text("添加传感器…")
                 onClicked: picker.open()
             }
 
             QQC2.Button {
                 icon.name: "edit-undo"
-                text: i18n("恢复默认")
+                text: I18n.text("恢复默认")
                 onClicked: root.resetToDefaults()
             }
 
@@ -752,29 +758,29 @@ KCM.SimpleKCM {
 
             QQC2.Button {
                 icon.name: "document-import"
-                text: i18n("导入…")
+                text: I18n.text("导入…")
                 enabled: !root.busy
                 onClicked: importDialog.open()
 
-                QQC2.ToolTip.text: i18n("从 JSON 文件导入传感器配置（会替换当前列表）")
+                QQC2.ToolTip.text: I18n.text("从 JSON 文件导入配置（会替换当前列表）")
                 QQC2.ToolTip.visible: hovered
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
 
             QQC2.Button {
                 icon.name: "document-export"
-                text: i18n("导出…")
+                text: I18n.text("导出…")
                 enabled: !root.busy && root.entries.length > 0
                 onClicked: exportDialog.open()
 
-                QQC2.ToolTip.text: i18n("把当前传感器配置保存为 JSON 文件")
+                QQC2.ToolTip.text: I18n.text("把当前配置保存为 JSON 文件")
                 QQC2.ToolTip.visible: hovered
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
         }
 
         HintLabel {
-            text: i18n("提示：紧凑排列时前半部分在第一行、后半部分在第二行；整齐对齐时按列填充（1 3 5 / 2 4 6）。")
+            text: I18n.text("提示：紧凑排列时前半部分在第一行、后半部分在第二行；整齐对齐时按列填充（1 3 5 / 2 4 6）。")
         }
     }
 
@@ -787,23 +793,23 @@ KCM.SimpleKCM {
     Dialogs.FileDialog {
         id: exportDialog
 
-        title: i18n("导出传感器配置")
+        title: I18n.text("导出配置")
         fileMode: Dialogs.FileDialog.SaveFile
         defaultSuffix: "json"
-        acceptLabel: i18n("导出")
+        acceptLabel: I18n.text("导出")
         currentFile: root.defaultExportUrl
-        nameFilters: [i18n("JSON 文件 (*.json)"), i18n("所有文件 (*)")]
+        nameFilters: [I18n.text("JSON 文件 (*.json)"), I18n.text("所有文件 (*)")]
         onAccepted: root.exportToFile(root.toLocalPath(selectedFile))
     }
 
     Dialogs.FileDialog {
         id: importDialog
 
-        title: i18n("导入传感器配置")
+        title: I18n.text("导入配置")
         fileMode: Dialogs.FileDialog.OpenFile
-        acceptLabel: i18n("导入")
+        acceptLabel: I18n.text("导入")
         currentFolder: root.homePath.length > 0 ? "file://" + root.homePath : ""
-        nameFilters: [i18n("JSON 文件 (*.json)"), i18n("所有文件 (*)")]
+        nameFilters: [I18n.text("JSON 文件 (*.json)"), I18n.text("所有文件 (*)")]
         onAccepted: root.importFromFile(root.toLocalPath(selectedFile))
     }
 

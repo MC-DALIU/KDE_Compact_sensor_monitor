@@ -40,10 +40,11 @@ Plasma 自带的「系统监视器」用文本模式（`org.kde.ksysguard.texton
 * **阈值告警**：传感器高于/低于设定值时发送桌面通知；带**回差**（死区）和冷却时间，
   数值在阈值附近来回抖动也不会反复提醒
 * **导入 / 导出**：传感器、外观设置、告警规则一并存成 JSON 文件；导入时自动跳过有问题的项并汇总报告
+* **多语言**：内置中文与英文；默认跟随系统语言，也可以单独给这个小部件指定语言。新增一种语言只需
+  一个文件，见[翻译](#翻译)
 * **细节**：悬停提示列出**全部**传感器（Plasma 自带的提示框布局只画前 8 行，所以本部件自己提供了
   提示内容）、刷新间隔（100ms–10s）、传感器间距、可选分隔符、点击弹出大号视图
 * 右键 →「配置 紧凑监视器…」进入 Plasma 标准配置界面
-* 界面字符串目前只有中文，欢迎提交英文翻译
 
 ## 截图
 
@@ -70,6 +71,21 @@ Plasma 自带的「系统监视器」用文本模式（`org.kde.ksysguard.texton
 
 ## 安装
 
+最省事的方式是下载打包文件——来自 [store.kde.org](https://store.kde.org/p/2374718) 或
+[Release 附件](https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/releases)——然后安装它：
+
+```bash
+kpackagetool6 --type Plasma/Applet --install compact-monitor.plasmoid
+```
+
+或者在面板上点右键 →「添加部件…」→「**从本地文件安装小部件…**」，选中那个 `.plasmoid` 文件。
+
+> [!NOTE]
+> Plasma 的「添加部件… → 获取新小部件…」里**搜不到**本部件（第三方 Plasma 6 条目不在那里列出），
+> 所以请到商店页面下载文件后按上面的方式手动安装。
+
+想用源码安装则：
+
 ```bash
 git clone https://github.com/MC-DALIU/KDE_Compact_sensor_monitor.git plasma-compact-monitor
 cd plasma-compact-monitor
@@ -91,16 +107,8 @@ kpackagetool6 --type Plasma/Applet --install org.mcdaliu.compactmonitor
 # 更新时用 --upgrade，或先 --remove 再 --install
 ```
 
-也可以直接安装打包文件（GitHub Release 里的附件，或从 store.kde.org 下载的）：
-
-```bash
-./package.sh                                        # 生成 compact-monitor.plasmoid
-kpackagetool6 --type Plasma/Applet --install compact-monitor.plasmoid
-```
-
-或者在面板上点右键 →「添加部件…」→「**从本地文件安装小部件…**」，选中这个 `.plasmoid` 文件。
-那个对话框和 KDE Store 需要的都是**单个归档**（`metadata.json` 在归档根目录），所以刚 clone 下来的
-仓库目录不能这样安装——源码安装请用 `install.sh`。
+`./package.sh` 可以从源码目录生成同一个归档。那个安装对话框和 KDE Store 需要的都是**单个归档**
+（`metadata.json` 在归档根目录），所以刚 clone 下来的仓库目录不能这样安装。
 
 然后在面板上点右键 →「添加部件…」→ 搜索 **紧凑监视器**。
 
@@ -133,6 +141,7 @@ kpackagetool6 --type Plasma/Applet --install compact-monitor.plasmoid
 | 文字颜色           | 勾选「自定义」后所有文字都用该颜色；不勾选时各用自己传感器的颜色                      |
 | 深浅色             | 勾选后按当前主题/面板背景自动调整颜色明暗（浅色调暗、深色调亮），并显示检测结果       |
 | 颜色条             | 勾选后，设置过颜色的传感器前面会画一条小色条                                          |
+| 界面语言           | 「跟随系统」或任何有语言文件的语言（内置中文与英文）                                  |
 | 刷新间隔           | 传感器更新间隔，默认 1000 毫秒                                                        |
 
 页面顶部有实时预览（预览使用**当前已应用**的传感器列表，所以排列、字体、对齐、颜色的改动按「应用」
@@ -310,6 +319,9 @@ qdbus6 --literal org.kde.ksystemstats1 /org/kde/ksystemstats1 \
   也声明了外观设置和告警规则——它们要跟着它的 JSON 文件一起走。另外 Plasma 还会额外提供
   `cfg_<key>Default`（给"恢复默认"用），所以日志里会抱怨 `cfg_lineCountDefault` 之类未知属性，
   这部分无害。
+* 翻译是 `contents/i18n/` 下每种语言一个 QML 文件，由一个单例（`contents/ui/i18n/I18n.qml`）查表；
+  界面里的绑定会读取它的 `strings` 属性，所以换语言时整个界面会自动重新求值，不用重启任何东西。
+  至于为什么不用 `i18n()` / `.po`，见[翻译](#翻译)。
 * Plasma 自带的提示框布局把 `subText` 限制在 8 行（`org.kde.plasma.core/DefaultToolTip.qml` 里的
   `maximumLineCount: 8`），传感器一多就会被悄悄截断。所以本部件把
   `contents/ui/ToolTipContent.qml` 作为 `toolTipItem` 交给外壳；它放在一个不可见的宿主里，这样在
@@ -335,7 +347,36 @@ qdbus6 --literal org.kde.ksystemstats1 /org/kde/ksystemstats1 \
 
 * 数值没有定宽对齐，长度会随数字变化（整齐对齐至少能保证列本身稳定）
 * 还不支持曲线、历史图表
-* 界面字符串目前只有中文
+* 目前只翻译了中文和英文，其它语言每种一个文件即可，见[翻译](#翻译)
+
+## 翻译
+
+翻译文件在 `org.mcdaliu.compactmonitor/contents/i18n/`，一种语言一个文件——英文是 `en.qml`：
+
+```qml
+import QtQuick
+
+QtObject {
+    readonly property var strings: ({
+        "外观": "Appearance",
+        "%1 秒": "%1 seconds"
+    })
+}
+```
+
+**键**就是界面里的中文源字符串，必须保持原样；`%1`、`%2`… 会被调用时的参数替换，所以翻译里可以
+调整它们的顺序。文件里缺少某个键时，会回退显示中文源字符串，因此**翻一半也能用**。
+
+新增一种语言：
+
+1. 把 `contents/i18n/en.qml` 复制成 `<语言代码>.qml`（用 Qt 认识的代码，如 `de`、`fr`、`pt_BR`）
+2. 翻译**值**，别动键
+3. 把该语言加进 `contents/ui/i18n/I18n.qml` 的 `supportedLanguages`
+4. 试一下：默认跟随系统语言，也可以在外观页的语言下拉框里手动切换
+
+中文不需要文件——源字符串本身就是中文。补充说明：这里用映射表而不是 `i18n()` 查表，是因为纯 QML
+的小部件无法在运行时切换 `i18n()` 的语言；而可能想到的 JSON 文件也读不了（Qt 在没有
+`QML_XHR_ALLOW_FILE_READ=1` 时拒绝 `file://` 的 XHR）。
 
 ## 参与贡献
 

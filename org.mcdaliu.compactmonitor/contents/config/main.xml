@@ -22,6 +22,11 @@
       <label>Font size in pixels (used when auto font size is disabled)</label>
       <default>12</default>
     </entry>
+    <entry name="uiLanguage" type="String">
+      <label>User interface language; empty follows the system language</label>
+      <default></default>
+    </entry>
+
     <entry name="fontFamily" type="String">
       <label>Font family, empty means the system font</label>
       <default></default>

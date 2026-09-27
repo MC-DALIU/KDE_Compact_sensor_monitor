@@ -8,6 +8,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 
+import "../i18n"
 import org.kde.kirigami as Kirigami
 
 /*!
@@ -17,7 +18,7 @@ import org.kde.kirigami as Kirigami
 Kirigami.Dialog {
     id: dialog
 
-    title: i18n("选择颜色")
+    title: I18n.text("选择颜色")
     preferredWidth: Kirigami.Units.gridUnit * 15
     padding: Kirigami.Units.smallSpacing
     standardButtons: Kirigami.Dialog.Ok | Kirigami.Dialog.Cancel
@@ -87,7 +88,7 @@ Kirigami.Dialog {
 
         QQC2.Label {
             Layout.fillWidth: true
-            text: i18n("留空表示跟随 Plasma 主题颜色")
+            text: I18n.text("留空表示跟随 Plasma 主题颜色")
             opacity: 0.7
             font: Kirigami.Theme.smallFont
             wrapMode: Text.WordWrap
@@ -95,7 +96,7 @@ Kirigami.Dialog {
 
         QQC2.Button {
             Layout.fillWidth: true
-            text: i18n("使用主题颜色")
+            text: I18n.text("使用主题颜色")
             onClicked: {
                 dialog.color = "";
                 dialog.accept();

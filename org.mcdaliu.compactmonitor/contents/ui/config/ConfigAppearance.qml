@@ -11,6 +11,7 @@ import QtQuick.Layouts
 import ".." as Ui  // for the SensorView preview
 import "../ColorUtils.js" as ColorUtils
 
+import "../i18n"
 import org.kde.kcmutils as KCM
 import org.kde.kirigami as Kirigami
 
@@ -43,8 +44,13 @@ KCM.SimpleKCM {
     property alias cfg_showColorBar: colorBarBox.checked
     property alias cfg_customTextColor: customTextColorBox.checked
     property alias cfg_autoAdaptColors: autoAdaptBox.checked
+
+    onCfg_uiLanguageChanged: I18n.setLanguage(root.cfg_uiLanguage)
+
+    Component.onCompleted: I18n.setLanguage(root.cfg_uiLanguage)
     property alias cfg_separator: separatorField.text
 
+    property string cfg_uiLanguage: ""
     property int cfg_lineCount: 2
     property bool cfg_tableLayout: false
     property int cfg_labelAlignment: 0
@@ -72,7 +78,7 @@ KCM.SimpleKCM {
             Layout.topMargin: Kirigami.Units.smallSpacing
             horizontalAlignment: Text.AlignHCenter
             font.bold: true
-            text: i18n("预览")
+            text: I18n.text("预览")
         }
 
         // ---------------------------------------------------------------- preview
@@ -185,48 +191,48 @@ KCM.SimpleKCM {
         // ---------------------------------------------------------------- layout
         Kirigami.Separator {
             Kirigami.FormData.isSection: true
-            Kirigami.FormData.label: i18n("布局")
+            Kirigami.FormData.label: I18n.text("布局")
         }
 
         RowLayout {
-            Kirigami.FormData.label: i18n("显示行数：")
+            Kirigami.FormData.label: I18n.text("显示行数：")
 
             QQC2.RadioButton {
                 id: oneLineBox
-                text: i18n("单行")
+                text: I18n.text("单行")
                 checked: root.cfg_lineCount !== 2
                 onToggled: if (checked) root.cfg_lineCount = 1
             }
 
             QQC2.RadioButton {
                 id: twoLinesBox
-                text: i18n("双行")
+                text: I18n.text("双行")
                 checked: root.cfg_lineCount === 2
                 onToggled: if (checked) root.cfg_lineCount = 2
             }
         }
 
         RowLayout {
-            Kirigami.FormData.label: i18n("排列方式：")
+            Kirigami.FormData.label: I18n.text("排列方式：")
 
             QQC2.RadioButton {
                 id: packedModeBox
-                text: i18n("紧凑")
+                text: I18n.text("紧凑")
                 checked: !root.cfg_tableLayout
                 onToggled: if (checked) root.cfg_tableLayout = false
 
-                QQC2.ToolTip.text: i18n("每一行各自居中，最省空间（默认）")
+                QQC2.ToolTip.text: I18n.text("每一行各自居中，最省空间（默认）")
                 QQC2.ToolTip.visible: hovered
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
 
             QQC2.RadioButton {
                 id: tableModeBox
-                text: i18n("整齐对齐")
+                text: I18n.text("整齐对齐")
                 checked: root.cfg_tableLayout
                 onToggled: if (checked) root.cfg_tableLayout = true
 
-                QQC2.ToolTip.text: i18n("按列对齐，像表格一样")
+                QQC2.ToolTip.text: I18n.text("按列对齐，像表格一样")
                 QQC2.ToolTip.visible: hovered
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
@@ -235,13 +241,13 @@ KCM.SimpleKCM {
         QQC2.ComboBox {
             id: labelAlignBox
 
-            Kirigami.FormData.label: i18n("键对齐：")
+            Kirigami.FormData.label: I18n.text("键对齐：")
             visible: root.cfg_tableLayout
-            model: [i18n("左对齐"), i18n("居中"), i18n("右对齐")]
+            model: [I18n.text("左对齐"), I18n.text("居中"), I18n.text("右对齐")]
             currentIndex: root.cfg_labelAlignment
             onActivated: root.cfg_labelAlignment = currentIndex
 
-            QQC2.ToolTip.text: i18n("整齐对齐时，传感器名称在其列内的对齐方式")
+            QQC2.ToolTip.text: I18n.text("整齐对齐时，传感器名称在其列内的对齐方式")
             QQC2.ToolTip.visible: hovered
             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
         }
@@ -249,47 +255,47 @@ KCM.SimpleKCM {
         QQC2.ComboBox {
             id: valueAlignBox
 
-            Kirigami.FormData.label: i18n("值对齐：")
+            Kirigami.FormData.label: I18n.text("值对齐：")
             visible: root.cfg_tableLayout
-            model: [i18n("左对齐"), i18n("居中"), i18n("右对齐")]
+            model: [I18n.text("左对齐"), I18n.text("居中"), I18n.text("右对齐")]
             currentIndex: root.cfg_valueAlignment
             onActivated: root.cfg_valueAlignment = currentIndex
 
-            QQC2.ToolTip.text: i18n("整齐对齐时，数值在其列内的对齐方式")
+            QQC2.ToolTip.text: I18n.text("整齐对齐时，数值在其列内的对齐方式")
             QQC2.ToolTip.visible: hovered
             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
         }
 
         QQC2.SpinBox {
             id: itemSpacingBox
-            Kirigami.FormData.label: i18n("传感器间距：")
+            Kirigami.FormData.label: I18n.text("传感器间距：")
             from: 0
             to: 40
             value: root.cfg_itemSpacing
-            textFromValue: (value) => i18n("%1 像素", value)
+            textFromValue: (value) => I18n.text("%1 像素", value)
             valueFromText: (text) => parseInt(text)
             onValueModified: root.cfg_itemSpacing = value
         }
 
         QQC2.TextField {
             id: separatorField
-            Kirigami.FormData.label: i18n("分隔符：")
-            placeholderText: i18n("留空则不显示")
+            Kirigami.FormData.label: I18n.text("分隔符：")
+            placeholderText: I18n.text("留空则不显示")
             maximumLength: 3
         }
 
         // ---------------------------------------------------------------- font
         Kirigami.Separator {
             Kirigami.FormData.isSection: true
-            Kirigami.FormData.label: i18n("字体")
+            Kirigami.FormData.label: I18n.text("字体")
         }
 
         QQC2.ComboBox {
             id: fontFamilyBox
 
-            Kirigami.FormData.label: i18n("字体：")
+            Kirigami.FormData.label: I18n.text("字体：")
             Layout.fillWidth: true
-            model: [i18n("跟随系统")].concat(Qt.fontFamilies())
+            model: [I18n.text("跟随系统")].concat(Qt.fontFamilies())
 
             Component.onCompleted: {
                 const index = model.indexOf(root.cfg_fontFamily);
@@ -300,11 +306,11 @@ KCM.SimpleKCM {
         }
 
         RowLayout {
-            Kirigami.FormData.label: i18n("字号：")
+            Kirigami.FormData.label: I18n.text("字号：")
 
             QQC2.CheckBox {
                 id: autoFontSizeBox
-                text: i18n("自动适应面板高度")
+                text: I18n.text("自动适应面板高度")
             }
 
             QQC2.SpinBox {
@@ -313,7 +319,7 @@ KCM.SimpleKCM {
                 from: 6
                 to: 48
                 value: root.cfg_fontSize
-                textFromValue: (value) => i18n("%1 像素", value)
+                textFromValue: (value) => I18n.text("%1 像素", value)
                 valueFromText: (text) => parseInt(text)
                 onValueModified: root.cfg_fontSize = value
             }
@@ -321,28 +327,28 @@ KCM.SimpleKCM {
 
         QQC2.CheckBox {
             id: boldBox
-            Kirigami.FormData.label: i18n("字形：")
-            text: i18n("粗体")
+            Kirigami.FormData.label: I18n.text("字形：")
+            text: I18n.text("粗体")
         }
 
         QQC2.CheckBox {
             id: showNamesBox
-            Kirigami.FormData.label: i18n("名称：")
-            text: i18n("在数值前显示传感器名称")
+            Kirigami.FormData.label: I18n.text("名称：")
+            text: I18n.text("在数值前显示传感器名称")
         }
 
         // ---------------------------------------------------------------- color
         Kirigami.Separator {
             Kirigami.FormData.isSection: true
-            Kirigami.FormData.label: i18n("颜色")
+            Kirigami.FormData.label: I18n.text("颜色")
         }
 
         RowLayout {
-            Kirigami.FormData.label: i18n("文字颜色：")
+            Kirigami.FormData.label: I18n.text("文字颜色：")
 
             QQC2.CheckBox {
                 id: customTextColorBox
-                text: i18n("自定义")
+                text: I18n.text("自定义")
             }
 
             Rectangle {
@@ -359,29 +365,29 @@ KCM.SimpleKCM {
                 id: textColorButton
 
                 enabled: customTextColorBox.checked
-                text: root.cfg_textColor.length > 0 ? root.cfg_textColor : i18n("主题颜色")
+                text: root.cfg_textColor.length > 0 ? root.cfg_textColor : I18n.text("主题颜色")
                 onClicked: textColorDialog.openWithColor(root.cfg_textColor)
 
-                QQC2.ToolTip.text: i18n("点击选择颜色")
+                QQC2.ToolTip.text: I18n.text("点击选择颜色")
                 QQC2.ToolTip.visible: hovered
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
         }
 
         RowLayout {
-            Kirigami.FormData.label: i18n("深浅色：")
+            Kirigami.FormData.label: I18n.text("深浅色：")
 
             QQC2.CheckBox {
                 id: autoAdaptBox
-                text: i18n("根据主题自动调整颜色明暗")
+                text: I18n.text("根据主题自动调整颜色明暗")
 
-                QQC2.ToolTip.text: i18n("浅色主题下把颜色调暗、深色主题下把颜色调亮，保持色相不变")
+                QQC2.ToolTip.text: I18n.text("浅色主题下把颜色调暗、深色主题下把颜色调亮，保持色相不变")
                 QQC2.ToolTip.visible: hovered
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
 
             QQC2.Label {
-                text: root.themeIsDark ? i18n("（当前：深色主题）") : i18n("（当前：浅色主题）")
+                text: root.themeIsDark ? I18n.text("（当前：深色主题）") : I18n.text("（当前：浅色主题）")
                 opacity: 0.7
                 font: Kirigami.Theme.smallFont
             }
@@ -389,28 +395,52 @@ KCM.SimpleKCM {
 
         QQC2.CheckBox {
             id: colorBarBox
-            Kirigami.FormData.label: i18n("颜色条：")
-            text: i18n("在设置了颜色的传感器前显示一条色条")
+            Kirigami.FormData.label: I18n.text("颜色条：")
+            text: I18n.text("在设置了颜色的传感器前显示一条色条")
         }
 
         HintLabel {
-            text: i18n("勾选“自定义”后所有文字都用该颜色，传感器自己的颜色只用于颜色条；不勾选时名称和数值使用各自传感器的颜色。自动调整对两者都生效。")
+            text: I18n.text("勾选“自定义”后所有文字都用该颜色，传感器自己的颜色只用于颜色条；不勾选时名称和数值使用各自传感器的颜色。自动调整对两者都生效。")
         }
 
         // ---------------------------------------------------------------- update
         Kirigami.Separator {
             Kirigami.FormData.isSection: true
-            Kirigami.FormData.label: i18n("刷新")
+            Kirigami.FormData.label: I18n.text("语言")
+        }
+
+        QQC2.ComboBox {
+            id: languageBox
+
+            Kirigami.FormData.label: I18n.text("界面语言：")
+            textRole: "name"
+            valueRole: "code"
+            // the first entry is "follow the system"; the codes never change with
+            // the translation, so the selection survives the model being rebuilt
+            model: [{"code": "", "name": I18n.text("跟随系统")}].concat(I18n.supportedLanguages)
+
+            Component.onCompleted: currentIndex = indexOfValue(root.cfg_uiLanguage)
+            onModelChanged: currentIndex = indexOfValue(root.cfg_uiLanguage)
+            onActivated: root.cfg_uiLanguage = currentValue
+        }
+
+        HintLabel {
+            text: I18n.text("语言改动立即生效；配置对话框左侧的页面名（外观/传感器/告警）始终跟随系统语言。")
+        }
+
+        Kirigami.Separator {
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: I18n.text("刷新")
         }
 
         QQC2.SpinBox {
             id: updateIntervalBox
-            Kirigami.FormData.label: i18n("刷新间隔：")
+            Kirigami.FormData.label: I18n.text("刷新间隔：")
             from: 100
             to: 10000
             stepSize: 100
             value: root.cfg_updateInterval
-            textFromValue: (value) => i18n("%1 毫秒", value)
+            textFromValue: (value) => I18n.text("%1 毫秒", value)
             valueFromText: (text) => parseInt(text)
             onValueModified: root.cfg_updateInterval = value
         }

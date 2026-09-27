@@ -8,6 +8,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 
+import "../i18n"
 import org.kde.kirigami as Kirigami
 import org.kde.kitemmodels as KItemModels
 import org.kde.ksysguard.sensors as Sensors
@@ -19,7 +20,7 @@ import org.kde.ksysguard.sensors as Sensors
 Kirigami.Dialog {
     id: picker
 
-    title: i18n("添加传感器")
+    title: I18n.text("添加传感器")
     preferredWidth: Kirigami.Units.gridUnit * 28
     preferredHeight: Kirigami.Units.gridUnit * 28
     padding: Kirigami.Units.smallSpacing
@@ -63,7 +64,7 @@ Kirigami.Dialog {
 
         QQC2.Label {
             Layout.fillWidth: true
-            text: i18n("点击条目即可添加，打勾的表示已经添加过了。")
+            text: I18n.text("点击条目即可添加，打勾的表示已经添加过了。")
             opacity: 0.7
             font: Kirigami.Theme.smallFont
             wrapMode: Text.WordWrap
@@ -73,7 +74,7 @@ Kirigami.Dialog {
             id: searchField
 
             Layout.fillWidth: true
-            placeholderText: i18n("搜索传感器…")
+            placeholderText: I18n.text("搜索传感器…")
             onTextChanged: listView.searchString = text
         }
 
@@ -83,7 +84,7 @@ Kirigami.Dialog {
 
             QQC2.ToolButton {
                 icon.name: "go-previous"
-                text: i18n("返回")
+                text: I18n.text("返回")
                 onClicked: delegateModel.rootIndex = delegateModel.parentModelIndex()
             }
 

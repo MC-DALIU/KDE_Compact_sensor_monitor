@@ -12,6 +12,7 @@ import "AlertRules.js" as AlertRules
 import "SensorNames.js" as SensorNames
 import "ShellUtils.js" as ShellUtils
 
+import "i18n"
 import org.kde.kirigami as Kirigami
 import org.kde.ksysguard.sensors as Sensors
 import org.kde.plasma.core as PlasmaCore
@@ -33,8 +34,14 @@ PlasmoidItem {
     readonly property bool isEmpty: !root.sensorIds || root.sensorIds.length === 0
 
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
-    Plasmoid.title: i18n("紧凑监视器")
+    Plasmoid.title: I18n.text("紧凑监视器")
     Plasmoid.configurationRequired: root.isEmpty
+
+    readonly property string uiLanguage: Plasmoid.configuration.uiLanguage
+
+    // the applet follows the configured language, or the system one when it is empty
+    onUiLanguageChanged: I18n.setLanguage(root.uiLanguage)
+    Component.onCompleted: I18n.setLanguage(root.uiLanguage)
 
     // The panel's applet container asks the applet item itself for its size
     // hints, so mirror what the compact representation needs.
@@ -50,7 +57,7 @@ PlasmoidItem {
     fullRepresentation: FullRepresentation {
     }
 
-    toolTipMainText: i18n("紧凑监视器")
+    toolTipMainText: I18n.text("紧凑监视器")
     toolTipSubText: root.buildToolTip()
 
     /*!
@@ -246,14 +253,14 @@ PlasmoidItem {
     */
     function notifyAlert(label, rule, sensor) {
         const title = rule.condition === "below"
-                ? i18n("%1 低于阈值", label)
-                : i18n("%1 超过阈值", label);
-        const body = i18n("当前 %1（阈值 %2）", sensor.formattedValue, String(rule.threshold));
+                ? I18n.text("%1 低于阈值", label)
+                : I18n.text("%1 超过阈值", label);
+        const body = I18n.text("当前 %1（阈值 %2）", sensor.formattedValue, String(rule.threshold));
         const command = "gdbus call --session"
                 + " --dest org.freedesktop.Notifications"
                 + " --object-path /org/freedesktop/Notifications"
                 + " --method org.freedesktop.Notifications.Notify"
-                + " " + ShellUtils.quote(i18n("紧凑监视器"))
+                + " " + ShellUtils.quote(I18n.text("紧凑监视器"))
                 + " 0 " + ShellUtils.quote("utilities-system-monitor")
                 + " " + ShellUtils.quote(title)
                 + " " + ShellUtils.quote(body)

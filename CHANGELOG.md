@@ -10,6 +10,25 @@ the version the widget reports to Plasma.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-27
+
+### Added
+
+- **Translations.** The interface follows the system language by default and can also be chosen per
+  widget on the *Appearance* page; English ships with the widget. Chinese is the source language, so
+  a missing entry falls back to it and an unfinished translation is still usable. Adding a language
+  is one QML file — see *Translating* in the README.
+- `contents/i18n/en.qml` (130 entries) and the singleton that looks them up.
+
+### Changed
+
+- Export and import now default to `compact-monitor-config.json`, which is what the file actually
+  holds, and the buttons and tool tips say "configuration" instead of "sensor configuration".
+- Documentation: the installation instructions start with downloading the package file from
+  store.kde.org, and state explicitly that Plasma's *Add Widgets… → Get New Widgets…* does not list
+  this widget, so the file has to be installed by hand.
+
+
 _Nothing yet — add user-visible changes here before releasing, and move them into a new version
 section when the version in `metadata.json` is bumped._
 
@@ -73,6 +92,7 @@ First public release. Repository: <https://github.com/MC-DALIU/KDE_Compact_senso
   separator
 - Chinese user interface; English and Chinese documentation
 
-[Unreleased]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/releases/tag/v1.0.0

@@ -7,6 +7,7 @@
 import QtQuick
 import QtQuick.Layouts
 
+import "i18n"
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
@@ -84,7 +85,7 @@ Item {
 
         anchors.centerIn: parent
         visible: rep.isEmpty
-        text: i18n("请添加传感器")
+        text: I18n.text("请添加传感器")
         textFormat: Text.PlainText
         color: Kirigami.Theme.textColor
         font.pixelSize: Math.max(8, Math.round(Kirigami.Units.gridUnit * 0.7))

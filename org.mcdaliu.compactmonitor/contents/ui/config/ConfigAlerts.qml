@@ -11,6 +11,7 @@ import QtQuick.Layouts
 import "../AlertRules.js" as AlertRules
 import "../SensorNames.js" as SensorNames
 
+import "../i18n"
 import org.kde.kcmutils as KCM
 import org.kde.kirigami as Kirigami
 import org.kde.ksysguard.formatter
@@ -22,6 +23,8 @@ import org.kde.ksysguard.sensors as Sensors
 KCM.SimpleKCM {
     id: root
 
+    property string cfg_uiLanguage: ""
+
     property var cfg_alerts: []
 
     /*!
@@ -30,7 +33,12 @@ KCM.SimpleKCM {
     */
     property var rules: []
 
-    Component.onCompleted: root.loadFromConfig()
+    onCfg_uiLanguageChanged: I18n.setLanguage(root.cfg_uiLanguage)
+
+    Component.onCompleted: {
+        I18n.setLanguage(root.cfg_uiLanguage);
+        root.loadFromConfig();
+    }
 
     // ------------------------------------------------------------------ helpers
 
@@ -86,13 +94,13 @@ KCM.SimpleKCM {
     function recoveryText(rule, unit, unitKnown) {
         const margin = AlertRules.effectiveHysteresis(rule);
         if (margin <= 0) {
-            return i18n("回差为 0：数值贴着阈值抖动时会反复提醒");
+            return I18n.text("回差为 0：数值贴着阈值抖动时会反复提醒");
         }
         const limit = rule.condition === "below" ? rule.threshold + margin : rule.threshold - margin;
         const text = unitKnown ? Formatter.formatValue(limit, unit) : String(limit);
         return rule.condition === "below"
-            ? i18n("升到 %1 以上才重新提醒", text)
-            : i18n("降到 %1 以下才重新提醒", text);
+            ? I18n.text("升到 %1 以上才重新提醒", text)
+            : I18n.text("降到 %1 以下才重新提醒", text);
     }
 
     // --------------------------------------------------------------------- UI
@@ -101,13 +109,13 @@ KCM.SimpleKCM {
         spacing: Kirigami.Units.smallSpacing
 
         HintLabel {
-            text: i18n("达到阈值时发送桌面通知。提醒过一次后规则会先「解除武装」：数值要退回到阈值以外（退回的幅度由「回差」决定，默认按阈值的 5% 自动计算）才会再次提醒，所以数值在阈值附近来回跳动时不会反复通知。冷却时间则保证无论如何都不会比它更频繁地提醒。")
+            text: I18n.text("达到阈值时发送桌面通知。提醒过一次后规则会先「解除武装」：数值要退回到阈值以外（退回的幅度由「回差」决定，默认按阈值的 5% 自动计算）才会再次提醒，所以数值在阈值附近来回跳动时不会反复通知。冷却时间则保证无论如何都不会比它更频繁地提醒。")
         }
 
         HintLabel {
             Layout.topMargin: Kirigami.Units.smallSpacing
             visible: root.rules.length === 0
-            text: i18n("还没有告警规则，点下面的「添加告警…」选一个传感器。")
+            text: I18n.text("还没有告警规则，点下面的「添加告警…」选一个传感器。")
         }
 
         Repeater {
@@ -178,17 +186,17 @@ KCM.SimpleKCM {
                         }
 
                         QQC2.ComboBox {
-                            model: [i18n("高于"), i18n("低于")]
+                            model: [I18n.text("高于"), I18n.text("低于")]
                             currentIndex: row.modelData.condition === "below" ? 1 : 0
                             onActivated: root.updateRule(row.index, {"condition": currentIndex === 1 ? "below" : "above"})
 
-                            QQC2.ToolTip.text: i18n("高于阈值提醒，还是低于阈值提醒")
+                            QQC2.ToolTip.text: I18n.text("高于阈值提醒，还是低于阈值提醒")
                             QQC2.ToolTip.visible: hovered
                             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                         }
 
                         QQC2.Label {
-                            text: i18n("阈值")
+                            text: I18n.text("阈值")
                             opacity: 0.8
                         }
 
@@ -200,7 +208,7 @@ KCM.SimpleKCM {
                             value: row.modelData.threshold
                             onValueModified: root.updateRule(row.index, {"threshold": value})
 
-                            QQC2.ToolTip.text: i18n("与传感器原始数值比较；右面显示它换算后的样子")
+                            QQC2.ToolTip.text: I18n.text("与传感器原始数值比较；右面显示它换算后的样子")
                             QQC2.ToolTip.visible: hovered
                             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                         }
@@ -213,7 +221,7 @@ KCM.SimpleKCM {
                         }
 
                         QQC2.CheckBox {
-                            text: i18n("启用")
+                            text: I18n.text("启用")
                             checked: row.modelData.enabled
                             onToggled: root.updateRule(row.index, {"enabled": checked})
                         }
@@ -222,7 +230,7 @@ KCM.SimpleKCM {
                             icon.name: "edit-delete-remove"
                             onClicked: root.removeRule(row.index)
 
-                            QQC2.ToolTip.text: i18n("删除这条告警")
+                            QQC2.ToolTip.text: I18n.text("删除这条告警")
                             QQC2.ToolTip.visible: hovered
                             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                         }
@@ -237,7 +245,7 @@ KCM.SimpleKCM {
                         }
 
                         QQC2.Label {
-                            text: i18n("冷却")
+                            text: I18n.text("冷却")
                             opacity: 0.8
                         }
 
@@ -246,17 +254,17 @@ KCM.SimpleKCM {
                             to: 86400
                             stepSize: 10
                             value: row.modelData.cooldown
-                            textFromValue: (value) => i18n("%1 秒", value)
+                            textFromValue: (value) => I18n.text("%1 秒", value)
                             valueFromText: (text) => parseInt(text)
                             onValueModified: root.updateRule(row.index, {"cooldown": value})
 
-                            QQC2.ToolTip.text: i18n("冷却时间：这段时间内绝不会重复通知")
+                            QQC2.ToolTip.text: I18n.text("冷却时间：这段时间内绝不会重复通知")
                             QQC2.ToolTip.visible: hovered
                             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                         }
 
                         QQC2.Label {
-                            text: i18n("回差")
+                            text: I18n.text("回差")
                             opacity: 0.8
                         }
 
@@ -266,7 +274,7 @@ KCM.SimpleKCM {
                             value: AlertRules.effectiveHysteresis(row.modelData)
                             onValueModified: root.updateRule(row.index, {"hysteresis": value})
 
-                            QQC2.ToolTip.text: i18n("死区：数值要退回这么多才会再次提醒。默认按阈值的 5% 自动计算，0 表示关闭")
+                            QQC2.ToolTip.text: I18n.text("死区：数值要退回这么多才会再次提醒。默认按阈值的 5% 自动计算，0 表示关闭")
                             QQC2.ToolTip.visible: hovered
                             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                         }
@@ -290,7 +298,7 @@ KCM.SimpleKCM {
 
             QQC2.Button {
                 icon.name: "list-add"
-                text: i18n("添加告警…")
+                text: I18n.text("添加告警…")
                 onClicked: picker.open()
             }
 
@@ -300,7 +308,7 @@ KCM.SimpleKCM {
         }
 
         HintLabel {
-            text: i18n("提示：同一条规则可以给同一个传感器加多条（例如电量低于 20 和高于 90）。通知由 org.freedesktop.Notifications 发送，所以桌面通知的样式取决于你的通知设置。")
+            text: I18n.text("提示：同一条规则可以给同一个传感器加多条（例如电量低于 20 和高于 90）。通知由 org.freedesktop.Notifications 发送，所以桌面通知的样式取决于你的通知设置。")
         }
     }
 

@@ -14,7 +14,7 @@
         "License": "GPL-2.0-or-later",
         "Name": "Compact Monitor",
         "Name[zh_CN]": "紧凑监视器",
-        "Version": "1.1.0",
+        "Version": "1.2.0",
         "Website": "https://github.com/MC-DALIU/KDE_Compact_sensor_monitor",
         "BugReportUrl": "https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/issues"
     },
