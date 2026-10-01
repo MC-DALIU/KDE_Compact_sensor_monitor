@@ -10,6 +10,55 @@ the version the widget reports to Plasma.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-01
+
+### Added
+
+- **External content placeholder areas.** The widget can reserve any number of areas for content that
+  other programs push in: a music player's current title, a script's output, a build status. Each area
+  has a name, which is also the file it reads (`~/.cache/compact-monitor/<name>.json` by default), and
+  a slot that places it in front of every sensor or right after any one of them, so areas and sensors
+  can be **interleaved** instead of sitting at either end. An area has half or full height, a fixed /
+  minimum / maximum width, a font size of its own, and can keep its space while it is empty. They live
+  on their own *External content* page in the settings.
+  - All files are read by **one** command per interval, and reading uses the shell's builtin instead of
+    a `cat` process per area: measured 1.7 ms per poll for five areas, the same as for one, roughly
+    0.17 % of one core per second — and nothing runs at all while no area is configured. The read
+    interval is configurable.
+  - `tools/compact-monitor-push` writes into an area by name (`--id music`, `--color`, `--align`,
+    `--tooltip`, `--clear`).
+  - The areas travel in the exported configuration, and the widget can run with only placeholder areas
+    and no sensors at all.
+
+### Changed
+
+- Placeholder areas are measured against the sensors' own text block instead of the panel height, so a
+  full-height area can no longer push the widget past the panel edge (two sensor rows plus a 36 px area
+  used to make the widget 53 px tall). In the aligned layout a full-height area now gets a **column of
+  its own**, with the sensors continuing on either side of it.
+- The light/dark adjustment applies to the colour an external program pushes in, like it already did
+  for the sensors' own colours.
+- The widget's display is now built from one list that mixes sensors and placeholder areas, which is
+  what makes the interleaving possible.
+
+### Fixed
+
+- **The widget did not load on Qt 6.8** (Debian 13 with Plasma 6.3, for example): the translation
+  singleton used `short` as a variable name, and several other identifiers (`color`, `list`, `url`,
+  `action`, and a property called `color`) were QML type keywords in older QML engines, which made the
+  whole applet fail with "Type I18n unavailable". They have been renamed, and the applet, all
+  configuration pages and the English translation were verified to parse and instantiate on
+  Plasma 6.3.6 / Qt 6.8 again.
+- **The text colour chosen in the configuration was not applied.** Renaming the colour dialog's
+  property for the Qt 6.8 keyword fix (`color` → `selectedColor`) missed one call site, so accepting
+  the dialog silently did nothing and the colour stayed whatever it had been. Both call sites use the
+  new name now, and an empty colour ("use the theme colour") falls back to the Plasma theme colour
+  instead of being passed on as an invalid one. The released 1.2.0 is *not* affected by this.
+- Tool tips in the configuration dialog time out after four seconds: Plasma's tool tip style never
+  hides them by itself, so the hint on an area's interface file could stay on screen.
+- The configuration preview gives its content an explicit size before centring it. An `Item` that only
+  sets `implicitWidth` keeps an actual width of zero, which made the preview sit off-centre.
+
 ## [1.2.0] - 2026-09-27
 
 ### Added
@@ -24,13 +73,12 @@ the version the widget reports to Plasma.
 
 - Export and import now default to `compact-monitor-config.json`, which is what the file actually
   holds, and the buttons and tool tips say "configuration" instead of "sensor configuration".
+- `package.sh` names its output after the version in `metadata.json`
+  (`compact-monitor-<version>.plasmoid`) so that downloads can be told apart; the file name was and
+  is irrelevant for installing and updating.
 - Documentation: the installation instructions start with downloading the package file from
   store.kde.org, and state explicitly that Plasma's *Add Widgets… → Get New Widgets…* does not list
   this widget, so the file has to be installed by hand.
-
-
-_Nothing yet — add user-visible changes here before releasing, and move them into a new version
-section when the version in `metadata.json` is bumped._
 
 ## [1.1.0] - 2026-09-27
 
@@ -92,7 +140,8 @@ First public release. Repository: <https://github.com/MC-DALIU/KDE_Compact_senso
   separator
 - Chinese user interface; English and Chinese documentation
 
-[Unreleased]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/releases/tag/v1.0.0

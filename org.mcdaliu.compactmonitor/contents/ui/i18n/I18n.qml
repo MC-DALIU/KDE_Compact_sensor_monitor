@@ -54,14 +54,14 @@ QtObject {
     /*! The language to use when the setting says "follow the system". */
     function systemLanguage() {
         const locale = String(Qt.locale().name || "");
-        const short = locale.split("_")[0];
+        const shortCode = locale.split("_")[0];
         for (let i = 0; i < root.supportedLanguages.length; ++i) {
             if (root.supportedLanguages[i].code === locale) {
                 return root.supportedLanguages[i].code;
             }
         }
         for (let i = 0; i < root.supportedLanguages.length; ++i) {
-            if (root.supportedLanguages[i].code.split("_")[0] === short) {
+            if (root.supportedLanguages[i].code.split("_")[0] === shortCode) {
                 return root.supportedLanguages[i].code;
             }
         }

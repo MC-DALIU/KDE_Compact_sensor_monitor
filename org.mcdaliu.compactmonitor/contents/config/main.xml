@@ -74,6 +74,22 @@
     </entry>
   </group>
 
+  <group name="Placeholders">
+    <entry name="placeholders" type="StringList">
+      <label>Placeholder areas, one per entry: id|position|height|widthMode|width|reserve|file</label>
+      <default></default>
+    </entry>
+    <entry name="placeholderDirectory" type="String">
+      <label>Directory for placeholder files that are named after their id; empty means
+        ~/.cache/compact-monitor</label>
+      <default></default>
+    </entry>
+    <entry name="placeholderInterval" type="Int">
+      <label>How often the placeholder files are read, in milliseconds</label>
+      <default>1000</default>
+    </entry>
+  </group>
+
   <group name="Alerts">
     <entry name="alerts" type="StringList">
       <label>Threshold alerts, one per entry: sensorId|condition|threshold|cooldownSeconds|enabled</label>

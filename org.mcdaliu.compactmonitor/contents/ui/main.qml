@@ -12,6 +12,7 @@ import "AlertRules.js" as AlertRules
 import "SensorNames.js" as SensorNames
 import "ShellUtils.js" as ShellUtils
 
+import "PlaceholderRules.js" as PlaceholderRules
 import "i18n"
 import org.kde.kirigami as Kirigami
 import org.kde.ksysguard.sensors as Sensors
@@ -35,7 +36,7 @@ PlasmoidItem {
 
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
     Plasmoid.title: I18n.text("紧凑监视器")
-    Plasmoid.configurationRequired: root.isEmpty
+    Plasmoid.configurationRequired: root.isEmpty && root.placeholderRules.length === 0
 
     readonly property string uiLanguage: Plasmoid.configuration.uiLanguage
 
@@ -52,12 +53,17 @@ PlasmoidItem {
     preferredRepresentation: Plasmoid.formFactor === PlasmaCore.Types.Planar ? fullRepresentation : compactRepresentation
 
     compactRepresentation: CompactRepresentation {
+        placeholderContents: root.placeholderContents
     }
 
     fullRepresentation: FullRepresentation {
+        placeholderContents: root.placeholderContents
     }
 
     toolTipMainText: I18n.text("紧凑监视器")
+    // external content reaches the tool tip as well, so render it as plain text
+    // (a PlasmoidItem property - "Plasmoid.toolTipTextFormat" does not exist)
+    toolTipTextFormat: Text.PlainText
     toolTipSubText: root.buildToolTip()
 
     /*!
@@ -116,6 +122,154 @@ PlasmoidItem {
             return "";
         }
         return sensor.shortName.length > 0 ? sensor.shortName : sensor.name;
+    }
+
+    // ----------------------------------------------------------- external content
+
+    /*!
+        Placeholder areas. Every entry of the configuration describes one area and
+        the file an external program writes into.
+
+        All files are read by a single command per interval - one process, however
+        many placeholders there are - because spawning a process per placeholder on
+        a slow machine would be wasteful. A separator frames the output so that the
+        contents cannot be confused with each other. Polling is used at all because
+        the executable data engine only returns a command's output once it has
+        finished, so a long-running "tail -f" would never deliver anything.
+    */
+    readonly property var placeholderRules: PlaceholderRules.decodeList(Plasmoid.configuration.placeholders)
+
+    //! { "<encoded rule>": {"text": …, "color": …, "tooltip": …, "align": …} }
+    property var placeholderContents: ({})
+    property bool placeholderReading: false
+    property string placeholderHome: ""
+    property bool placeholderHomeRequested: false
+
+    function placeholderFiles() {
+        const files = [];
+        for (let i = 0; i < root.placeholderRules.length; ++i) {
+            files.push(PlaceholderRules.resolveFile(root.placeholderRules[i],
+                                                    Plasmoid.configuration.placeholderDirectory,
+                                                    root.placeholderHome));
+        }
+        return files;
+    }
+
+    //! "~" in the configured directory is expanded in a shell, once
+    function ensurePlaceholderHome() {
+        if (root.placeholderHome.length > 0 || root.placeholderHomeRequested) {
+            return;
+        }
+        root.placeholderHomeRequested = true;
+        homeReader.connectSource("printf %s \"$HOME\"");
+    }
+
+    function pollPlaceholders() {
+        if (root.placeholderReading) {
+            return;
+        }
+        const files = root.placeholderFiles();
+        if (files.length === 0) {
+            root.placeholderContents = ({});
+            return;
+        }
+        root.ensurePlaceholderHome();
+        if (root.placeholderHome.length === 0) {
+            return; // the first poll waits for the home directory to arrive
+        }
+        // resolve again now that the home directory is known
+        const resolved = root.placeholderFiles();
+        const quoted = [];
+        for (let i = 0; i < resolved.length; ++i) {
+            quoted.push(ShellUtils.quote(resolved[i]));
+        }
+        root.placeholderReading = true;
+        placeholderReader.connectSource(PlaceholderRules.frameCommand(quoted));
+    }
+
+    /*!
+        One file's content as a message: a JSON object, or the whole file as plain
+        text. Returns null for "nothing to show" and undefined for "unreadable,
+        keep what we had" - a writer caught in the middle of writing should not
+        make the area flicker.
+    */
+    function parsePlaceholderMessage(text) {
+        const trimmed = String(text === undefined || text === null ? "" : text).trim();
+        if (trimmed.length === 0) {
+            return null;
+        }
+        if (trimmed.charAt(0) === "{") {
+            let parsed = null;
+            try {
+                parsed = JSON.parse(trimmed);
+            } catch (error) {
+                return undefined;
+            }
+            if (parsed !== null && typeof parsed === "object") {
+                return {
+                    "text": parsed.text === undefined || parsed.text === null ? "" : String(parsed.text),
+                    "color": parsed.color === undefined || parsed.color === null ? "" : String(parsed.color),
+                    "tooltip": parsed.tooltip === undefined || parsed.tooltip === null ? "" : String(parsed.tooltip),
+                    "align": parsed.align === undefined || parsed.align === null ? "" : String(parsed.align)
+                };
+            }
+        }
+        return {"text": trimmed, "color": "", "tooltip": "", "align": ""};
+    }
+
+    function applyPlaceholderOutput(text) {
+        const contents = PlaceholderRules.parseFramed(text);
+        const files = root.placeholderFiles();
+        const result = {};
+        for (let i = 0; i < root.placeholderRules.length; ++i) {
+            const key = PlaceholderRules.encode(root.placeholderRules[i]);
+            const message = root.parsePlaceholderMessage(contents[files[i]]);
+            if (message === undefined) {
+                result[key] = root.placeholderContents[key] !== undefined ? root.placeholderContents[key] : null;
+            } else {
+                result[key] = message;
+            }
+        }
+        root.placeholderContents = result;
+    }
+
+    Plasma5Support.DataSource {
+        id: placeholderReader
+
+        engine: "executable"
+        connectedSources: []
+
+        onNewData: function (source, data) {
+            if (data["exit code"] === undefined) {
+                return;
+            }
+            placeholderReader.disconnectSource(source);
+            root.placeholderReading = false;
+            root.applyPlaceholderOutput(data.stdout);
+        }
+    }
+
+    Plasma5Support.DataSource {
+        id: homeReader
+
+        engine: "executable"
+        connectedSources: []
+
+        onNewData: function (source, data) {
+            if (data["exit code"] === undefined) {
+                return;
+            }
+            homeReader.disconnectSource(source);
+            root.placeholderHome = String(data.stdout === undefined || data.stdout === null ? "" : data.stdout).trim();
+        }
+    }
+
+    Timer {
+        running: root.placeholderRules.length > 0
+        repeat: true
+        triggeredOnStart: true
+        interval: Math.max(200, Plasmoid.configuration.placeholderInterval)
+        onTriggered: root.pollPlaceholders()
     }
 
     // ------------------------------------------------------------ threshold alerts
@@ -272,6 +426,16 @@ PlasmoidItem {
 
     function buildToolTip() {
         const lines = [];
+        for (let i = 0; i < root.placeholderRules.length; ++i) {
+            const message = root.placeholderContents[PlaceholderRules.encode(root.placeholderRules[i])];
+            if (message === null || message === undefined) {
+                continue;
+            }
+            const external = String(message.tooltip || "").length > 0 ? String(message.tooltip) : String(message.text || "");
+            if (external.length > 0) {
+                lines.push(external);
+            }
+        }
         for (let i = 0; i < tipSensors.count; ++i) {
             const sensor = tipSensors.objectAt(i);
             if (!sensor) {

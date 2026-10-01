@@ -11,6 +11,7 @@ import QtQuick.Layouts
 import ".." as Ui  // for the SensorView preview
 import "../ColorUtils.js" as ColorUtils
 
+import "../PlaceholderRules.js" as PlaceholderRules
 import "../i18n"
 import org.kde.kcmutils as KCM
 import org.kde.kirigami as Kirigami
@@ -38,6 +39,13 @@ KCM.SimpleKCM {
     //! whether the Plasma theme we are drawn on is a dark one
     readonly property bool themeIsDark: ColorUtils.isDark(Kirigami.Theme.backgroundColor)
 
+    /*!
+        The colour to draw text with: an empty custom colour means "follow the
+        Plasma theme", which is what the colour dialog offers as well.
+    */
+    readonly property color effectiveTextColor: (root.cfg_customTextColor && String(root.cfg_textColor).length > 0)
+            ? root.cfg_textColor : Kirigami.Theme.textColor
+
     property alias cfg_autoFontSize: autoFontSizeBox.checked
     property alias cfg_bold: boldBox.checked
     property alias cfg_showNames: showNamesBox.checked
@@ -47,10 +55,27 @@ KCM.SimpleKCM {
 
     onCfg_uiLanguageChanged: I18n.setLanguage(root.cfg_uiLanguage)
 
-    Component.onCompleted: I18n.setLanguage(root.cfg_uiLanguage)
+    Component.onCompleted: {
+        I18n.setLanguage(root.cfg_uiLanguage);
+        root.loadPlaceholders();
+    }
     property alias cfg_separator: separatorField.text
 
     property string cfg_uiLanguage: ""
+    //! the placeholder areas, read only here: the *External content* page owns them
+    property var cfg_placeholders: []
+
+    /*!
+        The placeholder areas while the page is open: an array of
+        {id, position, height, widthMode, width, reserve, file} objects, kept in
+        step with cfg_placeholders by pushPlaceholders().
+    */
+    property var placeholderEntries: []
+
+    function loadPlaceholders() {
+        root.placeholderEntries = PlaceholderRules.decodeList(root.cfg_placeholders || []);
+    }
+
     property int cfg_lineCount: 2
     property bool cfg_tableLayout: false
     property int cfg_labelAlignment: 0
@@ -104,8 +129,9 @@ KCM.SimpleKCM {
                 basePixelSize, so the measurement cannot depend on the result of
                 the calculation (which would oscillate).
             */
-            readonly property real rawScale: (width > Kirigami.Units.largeSpacing * 2 && measurePreview.implicitWidth > 0)
-                ? (width - Kirigami.Units.largeSpacing * 2) / measurePreview.implicitWidth
+            readonly property real measuredWidth: previewMeasure.implicitWidth
+            readonly property real rawScale: (width > Kirigami.Units.largeSpacing * 2 && measuredWidth > 0)
+                ? (width - Kirigami.Units.largeSpacing * 2) / measuredWidth
                 : 1
             // a little slack, text metrics do not scale perfectly linearly
             readonly property real previewScale: rawScale >= 1 ? 1 : rawScale * 0.97
@@ -115,7 +141,7 @@ KCM.SimpleKCM {
             // Kirigami.FormLayout sizes its children by their implicitHeight, a
             // Layout.preferredHeight on its own is ignored (and evaluated too
             // early to see the child), so set both.
-            implicitHeight: Math.max(preview.implicitHeight + Kirigami.Units.largeSpacing * 2,
+            implicitHeight: Math.max(previewContent.implicitHeight + Kirigami.Units.largeSpacing * 2,
                                      Kirigami.Units.gridUnit * 2.5)
             Layout.preferredHeight: implicitHeight
 
@@ -126,62 +152,29 @@ KCM.SimpleKCM {
             }
 
             // hidden, only used to measure how wide the content wants to be
-            Item {
+            PreviewContent {
+                id: previewMeasure
+
+                visible: false
                 width: 0
                 height: 0
-                visible: false
-
-                Ui.SensorView {
-                    id: measurePreview
-
-                    lineCount: root.cfg_lineCount
-                    tableMode: root.cfg_tableLayout
-                    labelAlignment: root.cfg_labelAlignment
-                    valueAlignment: root.cfg_valueAlignment
-                    uniformTextColor: root.cfg_customTextColor
-                    autoAdaptColors: root.cfg_autoAdaptColors
-                    backgroundColor: Kirigami.Theme.alternateBackgroundColor
-                    pixelSize: previewBox.basePixelSize
-                    fontFamily: root.cfg_fontFamily
-                    bold: root.cfg_bold
-                    showNames: root.cfg_showNames
-                    showColorBar: root.cfg_showColorBar
-                    itemSpacing: root.cfg_itemSpacing
-                    separator: root.cfg_separator
-                    textColor: root.cfg_customTextColor ? root.cfg_textColor : Kirigami.Theme.textColor
-                    updateInterval: Math.max(500, root.cfg_updateInterval)
-                    sensorIds: root.appliedSensorIds
-                    sensorLabels: root.appliedSensorLabels
-                    sensorColors: root.appliedSensorColors
-                    sensorShowLabels: root.appliedSensorShowLabels
-                }
+                settings: root
+                pixelSize: previewBox.basePixelSize
             }
 
-            Ui.SensorView {
-                id: preview
+            PreviewContent {
+                id: previewContent
 
+                // an Item's own width starts at 0, so give it the measured size
+                // explicitly - centring a zero-sized item puts the content at the
+                // parent's centre, not centred inside the box
+                width: implicitWidth
+                height: implicitHeight
                 anchors.centerIn: parent
-                lineCount: root.cfg_lineCount
-                tableMode: root.cfg_tableLayout
-                labelAlignment: root.cfg_labelAlignment
-                valueAlignment: root.cfg_valueAlignment
-                uniformTextColor: root.cfg_customTextColor
-                autoAdaptColors: root.cfg_autoAdaptColors
-                backgroundColor: Kirigami.Theme.alternateBackgroundColor
+                settings: root
                 pixelSize: previewBox.pixelSize
-                fontFamily: root.cfg_fontFamily
-                bold: root.cfg_bold
-                showNames: root.cfg_showNames
-                showColorBar: root.cfg_showColorBar
-                itemSpacing: root.cfg_itemSpacing
-                separator: root.cfg_separator
-                textColor: root.cfg_customTextColor ? root.cfg_textColor : Kirigami.Theme.textColor
-                updateInterval: Math.max(500, root.cfg_updateInterval)
-                sensorIds: root.appliedSensorIds
-                sensorLabels: root.appliedSensorLabels
-                sensorColors: root.appliedSensorColors
-                sensorShowLabels: root.appliedSensorShowLabels
             }
+
         }
 
         Kirigami.FormLayout {
@@ -223,6 +216,7 @@ KCM.SimpleKCM {
 
                 QQC2.ToolTip.text: I18n.text("每一行各自居中，最省空间（默认）")
                 QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
 
@@ -234,6 +228,7 @@ KCM.SimpleKCM {
 
                 QQC2.ToolTip.text: I18n.text("按列对齐，像表格一样")
                 QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
         }
@@ -249,6 +244,7 @@ KCM.SimpleKCM {
 
             QQC2.ToolTip.text: I18n.text("整齐对齐时，传感器名称在其列内的对齐方式")
             QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
         }
 
@@ -263,6 +259,7 @@ KCM.SimpleKCM {
 
             QQC2.ToolTip.text: I18n.text("整齐对齐时，数值在其列内的对齐方式")
             QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
         }
 
@@ -370,6 +367,7 @@ KCM.SimpleKCM {
 
                 QQC2.ToolTip.text: I18n.text("点击选择颜色")
                 QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
         }
@@ -383,6 +381,7 @@ KCM.SimpleKCM {
 
                 QQC2.ToolTip.text: I18n.text("浅色主题下把颜色调暗、深色主题下把颜色调亮，保持色相不变")
                 QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
 
@@ -445,10 +444,11 @@ KCM.SimpleKCM {
             onValueModified: root.cfg_updateInterval = value
         }
         }
+
     }
 
     ColorSwatchDialog {
         id: textColorDialog
-        onAccepted: root.cfg_textColor = color
+        onAccepted: root.cfg_textColor = textColorDialog.selectedColor
     }
 }

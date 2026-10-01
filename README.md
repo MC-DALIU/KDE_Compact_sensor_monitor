@@ -50,6 +50,8 @@ text and hugs its content: the screenshot above is ten sensors in two lines.
   notifying over and over
 * **Import / export** sensors, appearance and alert rules as a JSON file; broken entries are
   skipped and reported instead of failing the whole import
+* **Room for external content**: reserve one or more areas next to the sensors and let any program
+  write into them — see [External content placeholder](#external-content-placeholder)
 * **Languages**: Chinese and English ship with it, the language follows the system by default and
   can also be set per widget; adding a language is one small file, see [Translating](#translating)
 * **Details**: hover tooltip listing every sensor (Plasma's own tooltip layout stops after eight
@@ -74,7 +76,8 @@ text and hugs its content: the screenshot above is ten sensors in two lines.
 
 ## Requirements
 
-* KDE Plasma **6** (developed and tested on Plasma 6.7.4, Manjaro Linux, Wayland)
+* KDE Plasma **6** — developed on 6.7.4 (Manjaro Linux, Wayland) and also tested on 6.3.6
+  (Debian 13), which is the oldest version it has been run on
 * `libksysguard` — provides the `org.kde.ksysguard.sensors` QML module the widget reads
 * `ksystemstats` running (part of any normal Plasma session)
 * `org.kde.plasma.plasma5support` — only used for import/export (ships with Plasma 6)
@@ -88,11 +91,13 @@ The easiest way is to download the package file — from
 that:
 
 ```bash
-kpackagetool6 --type Plasma/Applet --install compact-monitor.plasmoid
+kpackagetool6 --type Plasma/Applet --install compact-monitor-<version>.plasmoid
 ```
 
 or right-click the panel → **Add Widgets…** → **Install Widget From Local File…** and pick the
-`.plasmoid` file.
+`.plasmoid` file. `<version>` is whatever you downloaded: the version in the file name is only there
+to tell releases apart, what identifies the package is its `.plasmoid` ending and its
+`metadata.json` (`Id` and `Version`), so renaming the file does not change anything.
 
 > [!NOTE]
 > Plasma's *Add Widgets… → Get New Widgets…* does **not** list this widget (third-party Plasma 6
@@ -157,6 +162,11 @@ Right-click the widget → *Configure Compact Monitor…*. There are two pages.
 | Text color            | custom color for all text, otherwise every sensor uses its own color                  |
 | Dark/light            | automatically darken colors on light themes and brighten them on dark ones            |
 | Color bar             | draw a small colored bar in front of sensors that have a color                        |
+| External content      | reserve one or more areas that show what other programs push in (added like sensors) |
+| Interface file        | an area called `music` reads `<directory>/music.json`; the directory is configurable |
+| Read interval         | how often those files are read — one process per interval, none while unused   |
+| Content position      | each area picks a slot among the sensors, so the two can be interleaved        |
+| Content font size     | a size of its own, or "follow" the widget's — handy for full-height areas      |
 | Language              | *Follow the system* or any language that has a file (Chinese and English ship with it) |
 | Refresh interval      | 100–10000 ms                                                                         |
 
@@ -207,6 +217,86 @@ your notification settings. A rule that fires looks like this:
 
 Rules live in the widget configuration; since they are part of the exported JSON, they travel
 with the rest of your setup.
+
+## External content placeholder
+
+The widget can reserve one or more areas for content that other programs push in: a music player's
+current title, a script's output, a build status, anything. Each area has a name, and that name is
+also the file it reads — so "give the music player an area called `music`" and it writes into
+`~/.cache/compact-monitor/music.json`. No library, port or plugin is involved, so any language, or a
+plain shell script, can do it.
+
+Areas are configured on their own *External content* page in the widget's settings: a name, where it
+sits among the sensors — in front of all of them, or right after any one of them, so areas and sensors
+can be mixed freely — half or full height, a fixed / minimum / maximum width, a font size of its own
+(or "follow" the widget), and whether the space stays reserved while there is nothing to show. An area
+collapses when it is empty unless you ask it to keep its space.
+
+Heights are measured against the sensors' own text, not against the panel, so a full-height area can
+never make the widget taller than the panel. In the aligned layout a full-height area gets a column of
+its own, with the sensors continuing on either side of it; in the packed layout it takes the height of
+the sensors' text block. A full-height area usually looks better with a larger font size of its own.
+
+### The protocol
+
+Write what should be shown into the area's file — `~/.cache/compact-monitor/<name>.json`, or wherever
+the *interface file directory* points:
+
+* **plain text** — the whole file is shown, newlines break lines:
+
+  ```bash
+  echo "Now playing: Something" > ~/.cache/compact-monitor/music.json
+  ```
+
+* **a JSON object** — for a colour, an alignment and a longer tool tip:
+
+  ```json
+  { "text": "CPU 92 °C", "color": "#ff5555", "align": "center", "tooltip": "CPU is running hot" }
+  ```
+
+  | key | meaning |
+  | --- | --- |
+  | `text` | what the area shows; `\n` breaks lines |
+  | `color` | optional text colour, `#rgb`, `#rrggbb` or `#aarrggbb` |
+  | `align` | optional `left` (the default), `center` or `right` |
+  | `tooltip` | optional text for the widget's tool tip |
+
+An empty file means "nothing to show". Content is rendered as plain text, so nothing in it can be
+taken for markup, and the files are only ever read — nothing is uploaded anywhere. A file caught
+half-written is ignored until it parses again, so a writer does not have to be careful, although
+writing through a temporary file and renaming it is still the safest way to publish.
+
+The same thing from other languages — the widget does not care how you write it:
+
+```python
+# Python
+import json, pathlib
+pathlib.Path.home().joinpath(".cache/compact-monitor/music.json").write_text(
+    json.dumps({"text": "Now playing: Something", "color": "#66ccff"}), encoding="utf-8")
+```
+
+```bash
+# a small helper ships with the sources
+tools/compact-monitor-push --id music "Now playing: Something"
+tools/compact-monitor-push --id music --color '#66ccff' --align center "Something"
+tools/compact-monitor-push --id music --clear
+```
+
+### What it costs
+
+All files are read by **one** command per interval, and the reading itself uses the shell's own
+builtin instead of a `cat` process per area, so the cost does not grow with the number of areas.
+Measured on a laptop, five areas, one-second interval:
+
+| | per poll | at 1 Hz |
+| --- | --- | --- |
+| one area | 1.7 ms | ≈ 0.17 % of one core |
+| five areas | 1.7 ms | ≈ 0.17 % of one core |
+| an empty shell, for comparison | 1.4 ms | ≈ 0.14 % of one core |
+
+Nothing runs at all while no area is configured, and the *read interval* on the *External content* page
+can be raised (2 s, 5 s, …) to lower it further. For scale: the sensors this widget shows are updated by
+`ksystemstats` once per second, which costs considerably more than that.
 
 ## Sensor IDs
 
@@ -333,6 +423,11 @@ A few notes for anyone who wants to hack on it (or write a similar widget):
   `Plasmoid.configuration` re-evaluates the binding that builds the rule list even when the rules
   did not change (a config map is not an ordinary property), and a per-index state reset there let
   a second notification slip through a one-hour cooldown.
+* Writing a **one-element `StringList` through the scripting interface corrupts it**:
+  `writeConfig("placeholders", ["a|b|c"])` stores the value character by character, comma separated,
+  and every read/write round trip adds another layer of escaping - reading it back even gives a string
+  rather than a list. Change such settings in the configuration dialog (the normal path), or stop
+  Plasma and edit `plasma-org.kde.plasma.desktop-appletsrc` by hand.
 * **Desktop notifications** also use the `executable` data source: a `gdbus call` to
   `org.freedesktop.Notifications.Notify`, with every argument passed through `ShellUtils.quote()`
   (the panel-spacer widget does the same). Alert rules are stored as one
@@ -356,6 +451,14 @@ A few notes for anyone who wants to hack on it (or write a similar widget):
   sensors page also declares the appearance keys and the alert rules - they are part of its JSON
   file. Plasma additionally offers each key as `cfg_<key>Default`, which is why the log mentions
   unknown `cfg_lineCountDefault`-style properties; that part is harmless.
+* The external content is *polled* rather than streamed: QML has no file API, and the executable
+  data engine only returns a command's output once the command has finished - a long-running
+  `tail -F` never delivered a single line in testing, so a `cat` per refresh interval it is.
+* Do not use QML type keywords as JavaScript identifiers: older QML engines (Qt 6.8, as shipped by
+  Debian 13) reject `short`, `color`, `list`, `url`, `action`, `real`, `int` and friends with
+  "Expected token `identifier`", while Qt 6.9 accepts them. That is why the colour dialog's property
+  is `selectedColor` rather than `color`, the locale helper uses `shortCode`, and so on - and why
+  renaming one of them means grepping for its old name everywhere, not just where it is declared.
 * Translations are one QML file per language in `contents/i18n/`, looked up by a singleton
   (`contents/ui/i18n/I18n.qml`) whose `strings` property the user interface reads in its bindings, so
   a language change re-evaluates the whole interface without restarting anything. See
@@ -367,6 +470,7 @@ A few notes for anyone who wants to hack on it (or write a similar widget):
   adopts it. Careful: `toolTipItem` is a property of `PlasmoidItem` itself, *not* of the `Plasmoid`
   context object - `Plasmoid.toolTipItem: ...` makes the whole applet fail to load with "Cannot
   assign to non-existent property", which is what `journalctl --user -u plasma-plasmashell` shows.
+  `toolTipTextFormat` is the same trap - it belongs to `PlasmoidItem` as well.
 * `Kirigami.FormLayout` sizes its rows by the children's `implicitHeight`, and a `QQC2.Label`
   with `wrapMode` still reports its full unwrapped width as `implicitWidth`. Both behaviours
   bit the configuration pages — see the comments in `HintLabel.qml` and
@@ -380,6 +484,7 @@ A few notes for anyone who wants to hack on it (or write a similar widget):
 | A sensor always shows`--`                                   | that sensor id does not exist on this machine; check the picker                                 |
 | Colors look washed out                                        | that is the automatic contrast adjustment; turn *Dark/light* off to keep your colors untouched |
 | The widget is too wide                                        | fewer sensors, hide the names, smaller font, or the *Packed* layout                            |
+| The placeholder area stays empty | check that it is enabled, that the *content file* is the file you write to, and that the file is not empty; it is read once per refresh interval |
 | Want to get rid of it                                         | `./install.sh --uninstall`, then remove the leftover icon from the panel                      |
 | Alerts never fire                                             | check that the rule is enabled and that its sensor really crosses the threshold; after a notification the rule stays quiet for its cooldown |
 | Notification does not appear                                  | they are ordinary desktop notifications: check *System Settings → Notifications* and do-not-disturb |

@@ -67,13 +67,13 @@ function decode(text) {
 }
 
 /*! Decodes a whole StringList, silently dropping entries that make no sense. */
-function decodeList(list) {
+function decodeList(entries) {
     const result = [];
-    if (!list) {
+    if (!entries) {
         return result;
     }
-    for (let i = 0; i < list.length; ++i) {
-        const rule = decode(list[i]);
+    for (let i = 0; i < entries.length; ++i) {
+        const rule = decode(entries[i]);
         if (rule !== null) {
             result.push(rule);
         }

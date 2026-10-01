@@ -23,7 +23,7 @@ Kirigami.Dialog {
     padding: Kirigami.Units.smallSpacing
     standardButtons: Kirigami.Dialog.Ok | Kirigami.Dialog.Cancel
 
-    property string color: ""
+    property string selectedColor: ""
     property var presets: [
         "#e01b24", "#ff7800", "#f6d32d", "#2ec27e", "#26a269", "#62a0ea",
         "#3584e4", "#9141ac", "#c061cb", "#e66100", "#986a44", "#f66151",
@@ -31,13 +31,13 @@ Kirigami.Dialog {
     ]
 
     function openWithColor(value) {
-        dialog.color = (value === undefined || value === null) ? "" : String(value);
+        dialog.selectedColor = (value === undefined || value === null) ? "" : String(value);
         dialog.open();
     }
 
     onAccepted: {
-        if (!/^#[0-9a-fA-F]{6}$/.test(dialog.color)) {
-            dialog.color = "";
+        if (!/^#[0-9a-fA-F]{6}$/.test(dialog.selectedColor)) {
+            dialog.selectedColor = "";
         }
     }
 
@@ -60,11 +60,12 @@ Kirigami.Dialog {
                     implicitWidth: Kirigami.Units.iconSizes.smallMedium
                     implicitHeight: Kirigami.Units.iconSizes.smallMedium
                     checkable: true
-                    checked: dialog.color.toLowerCase() === modelData.toLowerCase()
-                    onClicked: dialog.color = modelData
+                    checked: dialog.selectedColor.toLowerCase() === modelData.toLowerCase()
+                    onClicked: dialog.selectedColor = modelData
 
                     QQC2.ToolTip.text: modelData
                     QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                     QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
 
                     contentItem: Rectangle {
@@ -81,9 +82,9 @@ Kirigami.Dialog {
             id: hexField
 
             Layout.fillWidth: true
-            text: dialog.color
+            text: dialog.selectedColor
             placeholderText: "#rrggbb"
-            onTextEdited: dialog.color = text
+            onTextEdited: dialog.selectedColor = text
         }
 
         QQC2.Label {
@@ -98,7 +99,7 @@ Kirigami.Dialog {
             Layout.fillWidth: true
             text: I18n.text("使用主题颜色")
             onClicked: {
-                dialog.color = "";
+                dialog.selectedColor = "";
                 dialog.accept();
             }
         }

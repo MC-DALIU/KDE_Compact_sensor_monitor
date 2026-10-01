@@ -13,6 +13,7 @@ import "../AlertRules.js" as AlertRules
 import "../SensorNames.js" as SensorNames
 import "../ShellUtils.js" as ShellUtils
 
+import "../PlaceholderRules.js" as PlaceholderRules
 import "../i18n"
 import org.kde.kcmutils as KCM
 import org.kde.kirigami as Kirigami
@@ -23,6 +24,9 @@ KCM.SimpleKCM {
     id: root
 
     property string cfg_uiLanguage: ""
+    property var cfg_placeholders: []
+    property string cfg_placeholderDirectory: ""
+    property int cfg_placeholderInterval: 1000
 
     property var cfg_sensorIds: []
     property var cfg_sensorLabels: []
@@ -88,7 +92,9 @@ KCM.SimpleKCM {
         {"key": "customTextColor", "type": "bool"},
         {"key": "textColor", "type": "string", "color": true},
         {"key": "autoAdaptColors", "type": "bool"},
-        {"key": "updateInterval", "type": "int", "min": 100, "max": 10000}
+        {"key": "updateInterval", "type": "int", "min": 100, "max": 10000},
+        {"key": "placeholderDirectory", "type": "string", "maxLength": 512},
+        {"key": "placeholderInterval", "type": "int", "min": 200, "max": 60000}
     ]
 
     // import / export state
@@ -116,12 +122,12 @@ KCM.SimpleKCM {
         Runs a shell command (the "executable" data source runs it through a
         shell) and calls handleShellResult() when it finished.
     */
-    function runShell(action, command) {
+    function runShell(actionName, command) {
         if (root.busy) {
             return;
         }
         root.busy = true;
-        root.pendingAction = action;
+        root.pendingAction = actionName;
         root.shellOutput = "";
         shell.connectSource(command);
     }
@@ -141,19 +147,19 @@ KCM.SimpleKCM {
                 const error = data.stderr !== undefined ? String(data.stderr) : "";
                 shell.disconnectSource(source);
                 root.busy = false;
-                const action = root.pendingAction;
+                const actionName = root.pendingAction;
                 root.pendingAction = "";
-                root.handleShellResult(action, code, root.shellOutput, error);
+                root.handleShellResult(actionName, code, root.shellOutput, error);
             }
         }
     }
 
-    function handleShellResult(action, exitCode, output, error) {
-        if (action === "home") {
+    function handleShellResult(actionName, exitCode, output, error) {
+        if (actionName === "home") {
             root.homePath = output.trim();
             return;
         }
-        if (action === "export") {
+        if (actionName === "export") {
             if (exitCode !== 0) {
                 root.showMessage(Kirigami.MessageType.Error,
                                  I18n.text("导出失败：%1", error.trim().length > 0 ? error.trim() : I18n.text("未知错误")));
@@ -163,7 +169,7 @@ KCM.SimpleKCM {
             }
             return;
         }
-        if (action === "import") {
+        if (actionName === "import") {
             if (exitCode !== 0) {
                 root.showMessage(Kirigami.MessageType.Error,
                                  I18n.text("读取文件失败：%1", error.trim().length > 0 ? error.trim() : I18n.text("未知错误")));
@@ -181,8 +187,8 @@ KCM.SimpleKCM {
         resultMessage.visible = true;
     }
 
-    function toLocalPath(url) {
-        let text = String(url);
+    function toLocalPath(urlString) {
+        let text = String(urlString);
         if (text.indexOf("file://") === 0) {
             text = text.substring(7);
         }
@@ -278,12 +284,51 @@ KCM.SimpleKCM {
         return applied;
     }
 
-    function applyImportedAlerts(list, problems) {
+    /*! Reads the placeholder array of an imported file. */
+    function applyImportedPlaceholders(items, problems) {
+        const result = [];
+        for (let i = 0; i < items.length; ++i) {
+            const raw = items[i];
+            const position = i + 1;
+            if (raw === null || typeof raw !== "object") {
+                problems.push(I18n.text("占位符第 %1 项不是对象", position));
+                continue;
+            }
+            const id = (raw.id === undefined || raw.id === null) ? "" : String(raw.id).trim();
+            const file = (raw.file === undefined || raw.file === null) ? "" : String(raw.file).trim();
+            if (id.length === 0 && file.length === 0) {
+                problems.push(I18n.text("占位符第 %1 项既没有名称也没有文件，已跳过", position));
+                continue;
+            }
+            const width = Number(raw.width);
+            result.push({
+                "id": id,
+                "position": clampSetting(raw.position, 0, 1, 1),
+                "height": clampSetting(raw.height, 0, 1, 0),
+                "widthMode": clampSetting(raw.widthMode, 0, 2, 0),
+                "width": isNaN(width) ? 120 : Math.min(2000, Math.max(8, Math.round(width))),
+                "reserve": !(raw.reserve === false || raw.reserve === 0 || raw.reserve === "0" || raw.reserve === "false"),
+                "file": file
+            });
+        }
+        root.cfg_placeholders = PlaceholderRules.encodeList(result);
+        return result.length;
+    }
+
+    function clampSetting(value, minimum, maximum, fallback) {
+        const number = Number(value);
+        if (isNaN(number)) {
+            return fallback;
+        }
+        return Math.min(maximum, Math.max(minimum, Math.round(number)));
+    }
+
+    function applyImportedAlerts(items, problems) {
         const known = picker.availableSensorIds();
         const knownCount = Object.keys(known).length;
         const result = [];
-        for (let i = 0; i < list.length; ++i) {
-            const raw = list[i];
+        for (let i = 0; i < items.length; ++i) {
+            const raw = items[i];
             const position = i + 1;
             if (raw === null || typeof raw !== "object") {
                 problems.push(I18n.text("告警第 %1 项不是对象", position));
@@ -343,7 +388,8 @@ KCM.SimpleKCM {
                     "showLabel": entry.showLabel
                 };
             }),
-            "alerts": AlertRules.decodeList(root.cfg_alerts)
+            "alerts": AlertRules.decodeList(root.cfg_alerts),
+            "placeholders": PlaceholderRules.decodeList(root.cfg_placeholders)
         };
         root.exportedPath = path;
         root.runShell("export", "printf %s " + ShellUtils.quote(JSON.stringify(payload, null, 2))
@@ -364,13 +410,13 @@ KCM.SimpleKCM {
             return;
         }
 
-        let list = null;
+        let items = null;
         if (Array.isArray(data)) {
-            list = data;
+            items = data;
         } else if (data !== null && typeof data === "object" && Array.isArray(data.sensors)) {
-            list = data.sensors;
+            items = data.sensors;
         }
-        if (list === null) {
+        if (items === null) {
             root.showMessage(Kirigami.MessageType.Error, I18n.text("文件 %1 里没有找到传感器列表。", path));
             return;
         }
@@ -381,8 +427,8 @@ KCM.SimpleKCM {
         const entries = [];
         const seen = {};
 
-        for (let i = 0; i < list.length; ++i) {
-            const raw = list[i];
+        for (let i = 0; i < items.length; ++i) {
+            const raw = items[i];
             const position = i + 1;
             if (raw === null || typeof raw !== "object") {
                 problems.push(I18n.text("第 %1 项不是对象", position));
@@ -403,10 +449,10 @@ KCM.SimpleKCM {
             }
             seen[id] = true;
 
-            let color = "";
+            let colorValue = "";
             if (raw.color !== undefined && raw.color !== null && String(raw.color).length > 0) {
-                color = root.normalizeColor(raw.color);
-                if (color.length === 0) {
+                colorValue = root.normalizeColor(raw.color);
+                if (colorValue.length === 0) {
                     problems.push(I18n.text("第 %1 项：颜色 %2 无法识别，已忽略", position, String(raw.color)));
                 }
             }
@@ -418,7 +464,7 @@ KCM.SimpleKCM {
             }
 
             const label = (raw.label === undefined || raw.label === null) ? "" : String(raw.label);
-            entries.push(root.makeEntry(id, label, color, showLabel));
+            entries.push(root.makeEntry(id, label, colorValue, showLabel));
         }
 
         if (entries.length === 0) {
@@ -441,6 +487,9 @@ KCM.SimpleKCM {
         if (data !== null && typeof data === "object" && Array.isArray(data.alerts)) {
             alertCount = root.applyImportedAlerts(data.alerts, problems);
         }
+        if (data !== null && typeof data === "object" && Array.isArray(data.placeholders)) {
+            root.applyImportedPlaceholders(data.placeholders, problems);
+        }
 
         const summary = appearanceCount > 0
                 ? I18n.text("已导入 %1 个传感器，外观设置也已更新。", entries.length)
@@ -458,11 +507,11 @@ KCM.SimpleKCM {
 
     // ------------------------------------------------------------------ helpers
 
-    function makeEntry(sensorId, label, color, showLabel) {
+    function makeEntry(sensorId, label, colorValue, showLabel) {
         return {
             "sensorId": String(sensorId),
             "label": label === undefined || label === null ? "" : String(label),
-            "color": color === undefined || color === null ? "" : String(color),
+            "color": colorValue === undefined || colorValue === null ? "" : String(colorValue),
             "showLabel": showLabel === undefined || showLabel === null ? true : (showLabel != 0)
         };
     }
@@ -535,10 +584,10 @@ KCM.SimpleKCM {
     }
 
     // Colors are changed from a dialog, so the delegates can safely be recreated.
-    function setEntryColor(index, color) {
-        const list = root.entries.slice();
-        list[index] = root.copyEntry(list[index], {"color": color});
-        root.entries = list;
+    function setEntryColor(index, colorValue) {
+        const items = root.entries.slice();
+        items[index] = root.copyEntry(items[index], {"color": colorValue});
+        root.entries = items;
         root.pushToConfig();
     }
 
@@ -547,18 +596,18 @@ KCM.SimpleKCM {
         if (index < 0 || index >= root.entries.length || target < 0 || target >= root.entries.length) {
             return;
         }
-        const list = root.entries.slice();
-        const moved = list[index];
-        list[index] = list[target];
-        list[target] = moved;
-        root.entries = list;
+        const items = root.entries.slice();
+        const moved = items[index];
+        items[index] = items[target];
+        items[target] = moved;
+        root.entries = items;
         root.pushToConfig();
     }
 
     function removeEntry(index) {
-        const list = root.entries.slice();
-        list.splice(index, 1);
-        root.entries = list;
+        const items = root.entries.slice();
+        items.splice(index, 1);
+        root.entries = items;
         root.pushToConfig();
     }
 
@@ -566,18 +615,18 @@ KCM.SimpleKCM {
         if (root.entryIds().indexOf(sensorId) >= 0) {
             return;
         }
-        const list = root.entries.slice();
-        list.push(root.makeEntry(sensorId, "", "", true));
-        root.entries = list;
+        const items = root.entries.slice();
+        items.push(root.makeEntry(sensorId, "", "", true));
+        root.entries = items;
         root.pushToConfig();
     }
 
     function resetToDefaults() {
-        const list = [];
+        const items = [];
         for (let i = 0; i < root.defaultIds.length; ++i) {
-            list.push(root.makeEntry(root.defaultIds[i], root.defaultLabels[i], root.defaultColors[i], true));
+            items.push(root.makeEntry(root.defaultIds[i], root.defaultLabels[i], root.defaultColors[i], true));
         }
-        root.entries = list;
+        root.entries = items;
         root.pushToConfig();
     }
 
@@ -646,6 +695,7 @@ KCM.SimpleKCM {
 
                         QQC2.ToolTip.text: I18n.text("设置该传感器的颜色")
                         QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                         QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
 
                         contentItem: Rectangle {
@@ -696,6 +746,7 @@ KCM.SimpleKCM {
 
                         QQC2.ToolTip.text: I18n.text("留空则使用传感器自带名称")
                         QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                         QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                     }
 
@@ -706,6 +757,7 @@ KCM.SimpleKCM {
 
                         QQC2.ToolTip.text: I18n.text("是否显示名称，只显示数值时可以更紧凑")
                         QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                         QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                     }
 
@@ -715,6 +767,7 @@ KCM.SimpleKCM {
                         onClicked: root.moveEntry(row.index, -1)
                         QQC2.ToolTip.text: I18n.text("上移")
                         QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                     }
 
                     QQC2.ToolButton {
@@ -723,6 +776,7 @@ KCM.SimpleKCM {
                         onClicked: root.moveEntry(row.index, 1)
                         QQC2.ToolTip.text: I18n.text("下移")
                         QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                     }
 
                     QQC2.ToolButton {
@@ -730,6 +784,7 @@ KCM.SimpleKCM {
                         onClicked: root.removeEntry(row.index)
                         QQC2.ToolTip.text: I18n.text("移除")
                         QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                     }
                 }
             }
@@ -764,6 +819,7 @@ KCM.SimpleKCM {
 
                 QQC2.ToolTip.text: I18n.text("从 JSON 文件导入配置（会替换当前列表）")
                 QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
 
@@ -775,6 +831,7 @@ KCM.SimpleKCM {
 
                 QQC2.ToolTip.text: I18n.text("把当前配置保存为 JSON 文件")
                 QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                 QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
             }
         }
@@ -820,7 +877,7 @@ KCM.SimpleKCM {
 
         onAccepted: {
             if (colorDialog.targetIndex >= 0) {
-                root.setEntryColor(colorDialog.targetIndex, colorDialog.color);
+                root.setEntryColor(colorDialog.targetIndex, colorDialog.selectedColor);
             }
         }
     }
