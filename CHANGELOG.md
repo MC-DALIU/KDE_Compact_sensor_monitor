@@ -12,6 +12,14 @@ the version the widget reports to Plasma.
 
 ## [Unreleased]
 
+### Added
+
+- The *External content* page says that the widget only reads the interface files and that pointing the
+  directory at a memory file system (`/dev/shm/compact-monitor`) avoids disk writes completely. Both
+  READMEs explain the actual I/O: the widget never writes, its reads are served from the page cache, and
+  the writes are the pushing program's own — one file rewritten, around 350 MB a day at one update per
+  second, which is negligible for an SSD but exactly zero on a memory file system.
+
 ## [1.3.0] - 2026-10-01
 
 ### Added
@@ -118,7 +126,7 @@ the version the widget reports to Plasma.
 - An alert could fire again after an unrelated configuration change, because the "already notified"
   state was reset whenever the rule list was re-evaluated; it is now keyed by the rule's own content.
 
-## [1.0.0] - 2026-09-26
+## [VERSION 1 & VERSION 2] - 2026-09-26
 
 First public release. Repository: <https://github.com/MC-DALIU/KDE_Compact_sensor_monitor>
 

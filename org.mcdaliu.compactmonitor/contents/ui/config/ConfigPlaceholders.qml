@@ -353,6 +353,10 @@ KCM.SimpleKCM {
             }
         }
 
+        HintLabel {
+            text: I18n.text("小部件只读取这些文件，写不写、写多勤完全由你的程序决定。把目录设成 /dev/shm/compact-monitor 这样的内存文件系统就能做到一次磁盘写入都没有，代价是重启后内容消失。")
+        }
+
         RowLayout {
             Layout.fillWidth: true
             spacing: Kirigami.Units.smallSpacing

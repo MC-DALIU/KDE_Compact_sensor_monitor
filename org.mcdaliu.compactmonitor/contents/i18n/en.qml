@@ -138,6 +138,7 @@ QtObject {
         "搜索传感器…": "Search sensors\u2026",
         "返回": "Back",
         "紧凑监视器": "Compact Monitor",
+        "小部件只读取这些文件，写不写、写多勤完全由你的程序决定。把目录设成 /dev/shm/compact-monitor 这样的内存文件系统就能做到一次磁盘写入都没有，代价是重启后内容消失。": "The widget only reads these files; whether and how often they are written is entirely up to your program. Pointing the directory at a memory file system such as /dev/shm/compact-monitor means no disk writes at all, at the cost of the content disappearing on reboot.",
         "跟随": "Follow",
         "这块区域的字号；「跟随」表示和传感器一样": "Font size of this area; \u201cFollow\u201d means the same as the sensors",
 
