@@ -40,6 +40,8 @@ Plasma 自带的「系统监视器」用文本模式（`org.kde.ksysguard.texton
 * **阈值告警**：传感器高于/低于设定值时发送桌面通知；带**回差**（死区）和冷却时间，
   数值在阈值附近来回抖动也不会反复提醒
 * **导入 / 导出**：传感器、外观设置、告警规则一并存成 JSON 文件；导入时自动跳过有问题的项并汇总报告
+* **外部内容占位**：在传感器旁边留出**一块或多块**区域，任何程序都能往里写内容——见
+  [外部内容占位](#外部内容占位)
 * **多语言**：内置中文与英文；默认跟随系统语言，也可以单独给这个小部件指定语言。新增一种语言只需
   一个文件，见[翻译](#翻译)
 * **细节**：悬停提示列出**全部**传感器（Plasma 自带的提示框布局只画前 8 行，所以本部件自己提供了
@@ -62,7 +64,8 @@ Plasma 自带的「系统监视器」用文本模式（`org.kde.ksysguard.texton
 
 ## 运行要求
 
-* KDE Plasma **6**（在 Plasma 6.7.4 / Manjaro / Wayland 上开发和测试）
+* KDE Plasma **6**——在 6.7.4（Manjaro / Wayland）上开发，并在 6.3.6（Debian 13）上验证过，后者是
+  目前试过的最旧版本
 * `libksysguard` —— 提供小部件读取数据用的 `org.kde.ksysguard.sensors` QML 模块
 * `ksystemstats` 正在运行（正常 Plasma 会话里本来就有）
 * `org.kde.plasma.plasma5support` —— 只有导入/导出会用到（Plasma 6 自带）
@@ -75,10 +78,12 @@ Plasma 自带的「系统监视器」用文本模式（`org.kde.ksysguard.texton
 [Release 附件](https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/releases)——然后安装它：
 
 ```bash
-kpackagetool6 --type Plasma/Applet --install compact-monitor.plasmoid
+kpackagetool6 --type Plasma/Applet --install compact-monitor-<版本号>.plasmoid
 ```
 
 或者在面板上点右键 →「添加部件…」→「**从本地文件安装小部件…**」，选中那个 `.plasmoid` 文件。
+文件名里的版本号只是用来区分各次发布；真正起作用的是 `.plasmoid` 后缀和包内 `metadata.json` 的
+`Id` 与 `Version`，所以**改名不影响安装和更新**。
 
 > [!NOTE]
 > Plasma 的「添加部件… → 获取新小部件…」里**搜不到**本部件（第三方 Plasma 6 条目不在那里列出），
@@ -141,6 +146,11 @@ kpackagetool6 --type Plasma/Applet --install org.mcdaliu.compactmonitor
 | 文字颜色           | 勾选「自定义」后所有文字都用该颜色；不勾选时各用自己传感器的颜色                      |
 | 深浅色             | 勾选后按当前主题/面板背景自动调整颜色明暗（浅色调暗、深色调亮），并显示检测结果       |
 | 颜色条             | 勾选后，设置过颜色的传感器前面会画一条小色条                                          |
+| 外部内容占位       | 留出一块或多块区域显示其它程序推过来的内容（像传感器一样添加）                        |
+| 接口文件           | 名为 `music` 的区域读取 `<目录>/music.json`，目录可配置                               |
+| 读取间隔           | 多久读一次这些文件——每个间隔一个进程，没配置区域时完全不读                            |
+| 内容位置           | 每块区域选择插在传感器的哪个位置，因此可与传感器混排                                  |
+| 内容字号           | 可单独设字号，或「跟随」小部件——全高区域尤其有用                                      |
 | 界面语言           | 「跟随系统」或任何有语言文件的语言（内置中文与英文）                                  |
 | 刷新间隔           | 传感器更新间隔，默认 1000 毫秒                                                        |
 
@@ -180,6 +190,78 @@ kpackagetool6 --type Plasma/Applet --install org.mcdaliu.compactmonitor
 ![阈值告警通知：「CPU 超过阈值 / 当前 100.0%（阈值 90）」](Screenshots/Alert.png)
 
 规则保存在小部件配置里，也会随导出的 JSON 一起走。
+
+## 外部内容占位
+
+插件可以留出**一块或多块**区域，用来显示别的程序推过来的内容：音乐播放器的当前曲目、脚本的输出、编译
+状态，什么都行。每块区域有一个名字，**这个名字同时就是它读取的文件名**——"给音乐播放器一块叫 `music`
+的区域"，它就往 `~/.cache/compact-monitor/music.json` 里写。不需要库、不需要端口、不需要插件，任何
+语言、甚至一个 shell 脚本都能做到。
+
+区域在小部件设置里**单独的「外部内容」页**上配置：名字、插在传感器的哪个位置（可以排在最前面，也可以
+插在任意一个传感器之后——所以区域和传感器可以自由混排）、半高还是全高、固定/最小/最大宽度、单独的字号
+（或「跟随」传感器），以及没有内容时是否保留空间。默认没有内容时这块区域会自动收起。
+
+高度是按**传感器文字本身**衡量的，不是按面板，所以全高的区域绝不会把小部件顶得比面板还高。整齐对齐
+布局下，全高区域会**独占一列**，传感器继续排在它的两侧；紧凑布局下它取传感器文字块的高度。全高的区域
+通常配一个更大的字号更好看。
+
+### 协议
+
+把要显示的内容写进该区域的文件——`~/.cache/compact-monitor/<名字>.json`，或「接口文件目录」指定的位置：
+
+* **纯文本** —— 整个文件都会被显示，换行即换行：
+
+  ```bash
+  echo "正在播放：某首歌" > ~/.cache/compact-monitor/music.json
+  ```
+
+* **一个 JSON 对象** —— 可以指定颜色、对齐方式和更长的悬停提示：
+
+  ```json
+  { "text": "CPU 92 °C", "color": "#ff5555", "align": "center", "tooltip": "CPU 温度偏高" }
+  ```
+
+  | 字段 | 含义 |
+  | --- | --- |
+  | `text` | 显示的文字；`\n` 换行 |
+  | `color` | 可选，文字颜色，`#rgb`、`#rrggbb` 或 `#aarrggbb` |
+  | `align` | 可选，`left`（默认）、`center` 或 `right` |
+  | `tooltip` | 可选，鼠标悬停时显示的更长文字 |
+
+文件为空表示"没有内容"。内容一律按**纯文本**渲染，不会被当成标记语言解释；文件只在本地读取，**不会
+上传到任何地方**。正好被读到写了一半的文件会被忽略，等它完整了再显示，所以写入方不必小心翼翼；不过
+"写临时文件再改名"始终是最稳妥的发布方式。
+
+换成别的语言也一样——插件不关心你是怎么写的：
+
+```python
+# Python
+import json, pathlib
+pathlib.Path.home().joinpath(".cache/compact-monitor/music.json").write_text(
+    json.dumps({"text": "正在播放：某首歌", "color": "#66ccff"}, ensure_ascii=False), encoding="utf-8")
+```
+
+```bash
+# 源码里带了一个小工具
+tools/compact-monitor-push --id music "正在播放：某首歌"
+tools/compact-monitor-push --id music --color '#66ccff' --align center "某首歌"
+tools/compact-monitor-push --id music --clear
+```
+
+### 开销
+
+所有占位文件由**同一条命令**读取，而且读取用的是 shell 自己的内建命令，而不是每个区域 fork 一个 `cat`，
+所以开销**不随区域数量增长**。在笔记本上实测（5 个区域、1 秒间隔）：
+
+| | 每次读取 | 1Hz 下的占用 |
+| --- | --- | --- |
+| 1 个区域 | 1.7 ms | 约 0.17% 单核 |
+| 5 个区域 | 1.7 ms | 约 0.17% 单核 |
+| 对照：空 shell | 1.4 ms | 约 0.14% 单核 |
+
+**没有配置任何区域时完全不执行**；「外部内容」页的「读取间隔」可以调大（2 秒、5 秒……）进一步降低。作为参照：
+面板上传感器数据由 `ksystemstats` 每秒更新一次，那部分开销比这里大得多。
 
 ## 传感器 ID
 
@@ -304,6 +386,9 @@ qdbus6 --literal org.kde.ksystemstats1 /org/kde/ksystemstats1 \
 * 告警状态按**规则内容本身**做 key，而不是按它在列表里的位置：读 `Plasmoid.configuration`
   会让"规则列表"那个绑定重新求值（即使规则内容没变——配置映射终究不是普通属性），如果这时候重置
   状态，一小时冷却也拦不住第二次通知。
+* 用脚本接口写**只有一个元素的 `StringList` 会写坏它**：`writeConfig("placeholders", ["a|b|c"])`
+  会把值按字符用逗号存进去，而且每读写一次就多一层转义，读回来甚至还是字符串而不是列表。这类设置请走
+  配置对话框（正常路径），或者停掉 Plasma 后手动编辑 `plasma-org.kde.plasma.desktop-appletsrc`。
 * 桌面通知同样走 `executable` 数据引擎：`gdbus call` 调
   `org.freedesktop.Notifications.Notify`，每个参数都用 `ShellUtils.quote()` 包好（面板上的
   panel-spacer 部件也是这么做的）。告警规则按 `sensorId|条件|阈值|冷却|启用|回差` 一条字符串存在
@@ -319,6 +404,12 @@ qdbus6 --literal org.kde.ksystemstats1 /org/kde/ksystemstats1 \
   也声明了外观设置和告警规则——它们要跟着它的 JSON 文件一起走。另外 Plasma 还会额外提供
   `cfg_<key>Default`（给"恢复默认"用），所以日志里会抱怨 `cfg_lineCountDefault` 之类未知属性，
   这部分无害。
+* 外部内容是**轮询**而不是流式读取：QML 没有文件 API，而 `executable` 数据引擎只在命令结束后才返回输出
+  ——实测中长驻的 `tail -F` 一行都拿不到，所以只能每个刷新间隔 `cat` 一次。
+* 不要把 QML 的类型关键字当作 JS 标识符：较旧的 QML 引擎（如 Debian 13 的 Qt 6.8）会把
+  `short`、`color`、`list`、`url`、`action`、`real`、`int` 之类直接判为 "Expected token
+  `identifier`" 而拒绝解析，Qt 6.9 则接受。所以颜色对话框的属性叫 `selectedColor` 而不是 `color`、
+  区域设置里的变量叫 `shortCode`；也正因如此，改这类名字时必须把**所有引用处**一起改，而不只是声明处。
 * 翻译是 `contents/i18n/` 下每种语言一个 QML 文件，由一个单例（`contents/ui/i18n/I18n.qml`）查表；
   界面里的绑定会读取它的 `strings` 属性，所以换语言时整个界面会自动重新求值，不用重启任何东西。
   至于为什么不用 `i18n()` / `.po`，见[翻译](#翻译)。
@@ -328,7 +419,8 @@ qdbus6 --literal org.kde.ksystemstats1 /org/kde/ksystemstats1 \
   提示框接管它之前不会画到部件上。**注意**：`toolTipItem` 是 `PlasmoidItem` 自己的属性，**不是**
   `Plasmoid` 上下文对象的属性——写成 `Plasmoid.toolTipItem: ...` 会让整个部件加载失败并报
   "Cannot assign to non-existent property"，这个报错可以用
-  `journalctl --user -u plasma-plasmashell` 看到。
+  `journalctl --user -u plasma-plasmashell` 看到。`toolTipTextFormat` 是同一个坑——它同样是
+  `PlasmoidItem` 的属性。
 * 配置页里所有会换行的说明文字都用 `HintLabel`：`QQC2.Label` 打开 `wrapMode` 后 `implicitWidth`
   仍是不换行的整行宽度，直接放进 `Kirigami.FormLayout` 会把整个表单撑宽，窗口比它窄时右侧内容就被
   切掉。同理，传感器列表里带 `elide` 的长 ID 也必须显式 `Layout.minimumWidth: 0`。
@@ -341,6 +433,7 @@ qdbus6 --literal org.kde.ksystemstats1 /org/kde/ksystemstats1 \
 | 某个传感器一直显示 `--`                   | 本机没有这个传感器 ID，用选择器确认一下                |
 | 颜色看起来发灰                             | 那是自动对比度调整，把「深浅色」关掉就保持原色         |
 | 小部件太宽                                 | 减少传感器、关掉名称、调小字号，或改用「紧凑」排列     |
+| 占位区一直是空的 | 确认已启用、确认「数据文件」就是你写入的那个文件、确认文件不是空的；它是每个刷新间隔读一次 |
 | 想删掉                                     | `./install.sh --uninstall`，再把面板上残留的图标移除 |
 
 ## 已知限制 / 后续可做

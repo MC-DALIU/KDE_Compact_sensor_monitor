@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+#
+# Push something into a placeholder area of the Compact Monitor widget.
+#
+#   compact-monitor-push "Now playing: Something"
+#   compact-monitor-push --id music "Now playing: Something"
+#   compact-monitor-push --color '#ff5555' --align center "CPU 92 °C"
+#   compact-monitor-push --tooltip "Full title here" "Short title"
+#   compact-monitor-push --file /tmp/other.json "text"
+#   compact-monitor-push --clear
+#
+# A placeholder called "music" reads ~/.cache/compact-monitor/music.json, which is
+# what --id chooses; --dir picks another directory, --file names the file itself.
+# The widget reads the files every "read interval" (one second by default), so the
+# text shows up almost immediately.
+#
+# COMPACT_MONITOR_ID, COMPACT_MONITOR_DIR and COMPACT_MONITOR_FILE set the same
+# things through the environment.
+set -euo pipefail
+
+ID="${COMPACT_MONITOR_ID:-content}"
+DIR="${COMPACT_MONITOR_DIR:-$HOME/.cache/compact-monitor}"
+FILE="${COMPACT_MONITOR_FILE:-}"
+TEXT=""
+COLOR=""
+ALIGN=""
+TOOLTIP=""
+CLEAR=0
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --id) ID="$2"; shift 2 ;;
+        --dir) DIR="$2"; shift 2 ;;
+        --file) FILE="$2"; shift 2 ;;
+        --color) COLOR="$2"; shift 2 ;;
+        --align) ALIGN="$2"; shift 2 ;;
+        --tooltip) TOOLTIP="$2"; shift 2 ;;
+        --clear) CLEAR=1; shift ;;
+        -h|--help) sed -n '2,18p' "$0"; exit 0 ;;
+        *) TEXT="$1"; shift ;;
+    esac
+done
+
+if [ -z "$FILE" ]; then
+    case "$ID" in
+        *.json) FILE="$DIR/$ID" ;;
+        *) FILE="$DIR/$ID.json" ;;
+    esac
+fi
+
+mkdir -p "$(dirname "$FILE")"
+
+if [ "$CLEAR" = "1" ] || [ -z "$TEXT" ]; then
+    # an empty file means "nothing to show"
+    : > "$FILE"
+    printf 'cleared %s\n' "$FILE"
+    exit 0
+fi
+
+if [ -z "$COLOR" ] && [ -z "$ALIGN" ] && [ -z "$TOOLTIP" ]; then
+    # plain text is the simplest form of the protocol; written through a
+    # temporary file so the widget never reads half of a message
+    printf '%s\n' "$TEXT" > "$FILE.tmp.$$"
+    mv -f "$FILE.tmp.$$" "$FILE"
+    printf 'wrote %s\n' "$FILE"
+    exit 0
+fi
+
+python3 - "$FILE" "$TEXT" "$COLOR" "$ALIGN" "$TOOLTIP" <<'PY'
+import json
+import os
+import sys
+import tempfile
+
+path, text, color, align, tooltip = sys.argv[1:6]
+message = {"text": text}
+if color:
+    message["color"] = color
+if align:
+    message["align"] = align
+if tooltip:
+    message["tooltip"] = tooltip
+
+directory = os.path.dirname(path) or "."
+handle, temporary = tempfile.mkstemp(dir=directory, prefix=".compact-monitor-")
+with os.fdopen(handle, "w", encoding="utf-8") as stream:
+    json.dump(message, stream, ensure_ascii=False)
+os.replace(temporary, path)
+print("wrote " + path)
+PY

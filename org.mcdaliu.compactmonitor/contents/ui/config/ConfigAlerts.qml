@@ -56,8 +56,8 @@ KCM.SimpleKCM {
     }
 
     function addRule(sensorId) {
-        const list = root.rules.slice();
-        list.push({
+        const items = root.rules.slice();
+        items.push({
             "sensorId": sensorId,
             "condition": "above",
             "threshold": AlertRules.defaultThreshold(sensorId),
@@ -65,7 +65,7 @@ KCM.SimpleKCM {
             "hysteresis": AlertRules.defaultHysteresis(),
             "enabled": true
         });
-        root.rules = list;
+        root.rules = items;
         root.pushToConfig();
     }
 
@@ -82,9 +82,9 @@ KCM.SimpleKCM {
     }
 
     function removeRule(index) {
-        const list = root.rules.slice();
-        list.splice(index, 1);
-        root.rules = list;
+        const items = root.rules.slice();
+        items.splice(index, 1);
+        root.rules = items;
         root.pushToConfig();
     }
 
@@ -192,6 +192,7 @@ KCM.SimpleKCM {
 
                             QQC2.ToolTip.text: I18n.text("高于阈值提醒，还是低于阈值提醒")
                             QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                         }
 
@@ -210,6 +211,7 @@ KCM.SimpleKCM {
 
                             QQC2.ToolTip.text: I18n.text("与传感器原始数值比较；右面显示它换算后的样子")
                             QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                         }
 
@@ -232,6 +234,7 @@ KCM.SimpleKCM {
 
                             QQC2.ToolTip.text: I18n.text("删除这条告警")
                             QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                         }
                     }
@@ -260,6 +263,7 @@ KCM.SimpleKCM {
 
                             QQC2.ToolTip.text: I18n.text("冷却时间：这段时间内绝不会重复通知")
                             QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                         }
 
@@ -276,6 +280,7 @@ KCM.SimpleKCM {
 
                             QQC2.ToolTip.text: I18n.text("死区：数值要退回这么多才会再次提醒。默认按阈值的 5% 自动计算，0 表示关闭")
                             QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.timeout: 4000
                             QQC2.ToolTip.delay: Kirigami.Units.toolTipDelay
                         }
 

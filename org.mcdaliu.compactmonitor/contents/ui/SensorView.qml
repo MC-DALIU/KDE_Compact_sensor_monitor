@@ -30,6 +30,16 @@ Item {
     property var sensorLabels: []
     property var sensorColors: []
     property var sensorShowLabels: []
+    //! the placeholder areas and what they currently show, interleaved below
+    property var placeholders: []
+    property var placeholderContents: ({})
+    /*!
+        How tall the sensors' own text block is - the room a placeholder area gets.
+        Measuring against the panel height instead used to push the widget past the
+        panel edge once an area asked for the full height.
+    */
+    readonly property real textBlockHeight: view.rows * viewMetrics.height
+            + (view.rows - 1) * view.lineSpacing
 
     property int lineCount: 1
     property bool tableMode: false
@@ -59,44 +69,82 @@ Item {
     //! gap between a name and its value, the space between sensors stays itemSpacing
     readonly property int tableGap: Math.max(2, Math.round(view.pixelSize * 0.25))
 
+    FontMetrics {
+        id: viewMetrics
+
+        font.family: view.fontFamily.length > 0 ? view.fontFamily : Kirigami.Theme.defaultFont.family
+        font.pixelSize: view.pixelSize
+        font.bold: view.bold
+    }
+
     implicitWidth: view.tableMode ? gridLayout.implicitWidth : packedLayout.implicitWidth
     implicitHeight: view.tableMode ? gridLayout.implicitHeight : packedLayout.implicitHeight
 
-    function entryCount() {
-        return view.sensorIds ? view.sensorIds.length : 0;
-    }
-
-    function entriesInRange(from, to) {
-        const result = [];
+    /*!
+        The display list: sensors and placeholder areas interleaved by the
+        placeholders' slots. Slot 0 is in front of every sensor, slot n sits right
+        after sensor n, and anything at or past the last sensor goes to the end.
+    */
+    function displayEntries() {
+        const entries = [];
         const ids = view.sensorIds || [];
         const labels = view.sensorLabels || [];
         const colors = view.sensorColors || [];
         const showLabels = view.sensorShowLabels || [];
-        for (let i = from; i < to && i < ids.length; ++i) {
-            result.push({
-                "sensorId": String(ids[i]),
-                "label": labels[i] !== undefined && labels[i] !== null ? String(labels[i]) : "",
-                "color": colors[i] !== undefined && colors[i] !== null ? String(colors[i]) : "",
-                "showLabel": showLabels[i] !== undefined && showLabels[i] !== null ? showLabels[i] != 0 : true,
-                "isLast": i === ids.length - 1
-            });
+        for (let slot = 0; slot <= ids.length; ++slot) {
+            for (let p = 0; p < view.placeholders.length; ++p) {
+                const rule = view.placeholders[p];
+                const wanted = (rule.slot === undefined || rule.slot === null || rule.slot < 0)
+                        ? ids.length
+                        : Math.min(rule.slot, ids.length);
+                if (wanted === slot) {
+                    entries.push({"kind": "placeholder", "rule": rule});
+                }
+            }
+            if (slot < ids.length) {
+                entries.push({
+                    "kind": "sensor",
+                    "sensorId": String(ids[slot]),
+                    "label": labels[slot] !== undefined && labels[slot] !== null ? String(labels[slot]) : "",
+                    "color": colors[slot] !== undefined && colors[slot] !== null ? String(colors[slot]) : "",
+                    "showLabel": showLabels[slot] !== undefined && showLabels[slot] !== null ? showLabels[slot] != 0 : true,
+                    "isLast": slot === ids.length - 1
+                });
+            }
         }
-        return result;
+        return entries;
+    }
+
+    //! whether an area asked for the whole height (and therefore a column of its own)
+    function placeholderIsFullHeight(entry) {
+        return entry !== null && entry !== undefined && entry.kind === "placeholder"
+                && entry.rule !== undefined && Number(entry.rule.height) === 1;
+    }
+
+    function entryCount() {
+        return view.displayEntries().length;
+    }
+
+    function entriesInRange(from, to) {
+        return view.displayEntries().slice(from, to);
     }
 
     function entryAt(index) {
-        const ids = view.sensorIds || [];
-        if (index < 0 || index >= ids.length) {
-            return null;
-        }
-        return view.entriesInRange(index, index + 1)[0];
+        const entries = view.displayEntries();
+        return index >= 0 && index < entries.length ? entries[index] : null;
     }
 
     /*!
-        The cells of the table layout: for every sensor column first all names,
-        then all values. The grid is filled column by column, so this produces a
-        name column and a value column per sensor column, which lets both be
-        aligned independently.
+        The cells of the table layout.
+
+        Entries are packed into columns of \c rows items; a full-height area always
+        gets a column of its own, with the sensors continuing on either side of it.
+        A sensor contributes two grid columns (its name and its value) so that both
+        can be aligned independently, an area only one.
+
+        Every cell carries explicit Layout.row/Layout.column instead of relying on
+        the grid's fill order: a cell that spans rows cannot be placed reliably by
+        the flow, and getting it wrong moves every following sensor.
     */
     function tableCells() {
         const cells = [];
@@ -104,21 +152,77 @@ Item {
             return cells;
         }
         const rows = view.rows;
-        for (let column = 0; column < view.tableColumns; ++column) {
-            const lastColumn = column === view.tableColumns - 1;
-            const start = column * rows;
-            for (let r = 0; r < rows; ++r) {
-                const entry = view.entryAt(start + r);
-                if (entry) {
-                    cells.push({"entry": entry, "part": "label", "firstColumn": column === 0, "lastColumn": false});
+        const entries = view.displayEntries();
+
+        const columns = [];
+        let current = [];
+        for (let i = 0; i < entries.length; ++i) {
+            const entry = entries[i];
+            if (view.placeholderIsFullHeight(entry)) {
+                if (current.length > 0) {
+                    columns.push(current);
+                    current = [];
                 }
+                columns.push([entry]);
+                continue;
             }
-            for (let r = 0; r < rows; ++r) {
-                const entry = view.entryAt(start + r);
-                if (entry) {
-                    cells.push({"entry": entry, "part": "value", "firstColumn": false, "lastColumn": lastColumn});
-                }
+            current.push(entry);
+            if (current.length === rows) {
+                columns.push(current);
+                current = [];
             }
+        }
+        if (current.length > 0) {
+            columns.push(current);
+        }
+
+        let gridColumn = 0;
+        for (let c = 0; c < columns.length; ++c) {
+            const column = columns[c];
+            const lastColumn = c === columns.length - 1;
+            const endsColumn = (part) => (part === "value" || part === "filler") && lastColumn;
+
+            if (column.length === 1 && view.placeholderIsFullHeight(column[0])) {
+                cells.push({
+                    "entry": column[0],
+                    "part": "content",
+                    "row": 0,
+                    "column": gridColumn,
+                    "rowSpan": rows,
+                    "firstColumn": gridColumn === 0,
+                    "lastColumn": lastColumn
+                });
+                gridColumn += 1;
+                continue;
+            }
+
+            for (let r = 0; r < column.length; ++r) {
+                const entry = column[r];
+                const part = entry.kind === "placeholder" ? "content" : "label";
+                cells.push({
+                    "entry": entry,
+                    "part": part,
+                    "row": r,
+                    "column": gridColumn,
+                    "rowSpan": 1,
+                    "firstColumn": gridColumn === 0,
+                    "lastColumn": endsColumn(part)
+                });
+            }
+            for (let r = 0; r < column.length; ++r) {
+                const entry = column[r];
+                const part = entry.kind === "placeholder" ? "filler" : "value";
+                cells.push({
+                    "entry": entry,
+                    "part": part,
+                    "row": r,
+                    "column": gridColumn + 1,
+                    "rowSpan": 1,
+                    "firstColumn": false,
+                    "lastColumn": endsColumn(part)
+                });
+            }
+            gridColumn += 2;
         }
         return cells;
     }
@@ -149,16 +253,12 @@ Item {
             Repeater {
                 model: view.tableMode ? [] : view.rowEntries(0)
 
-                delegate: SensorItem {
+                delegate: DisplayEntry {
                     required property var modelData
 
-                    sensorId: modelData.sensorId
-                    customLabel: modelData.label
-                    accentColor: modelData.color
-                    showLabel: modelData.showLabel
-                    isLast: modelData.isLast
+                    entry: modelData
                     showColorBar: view.showColorBar
-                    showDefaultName: view.showNames
+                    showNames: view.showNames
                     separator: view.separator
                     uniformTextColor: view.uniformTextColor
                     autoAdaptColors: view.autoAdaptColors
@@ -168,6 +268,8 @@ Item {
                     bold: view.bold
                     textColor: view.textColor
                     updateInterval: view.updateInterval
+                    placeholderContents: view.placeholderContents
+                    placeholderHeight: view.textBlockHeight
                 }
             }
         }
@@ -182,16 +284,12 @@ Item {
             Repeater {
                 model: view.tableMode ? [] : view.rowEntries(1)
 
-                delegate: SensorItem {
+                delegate: DisplayEntry {
                     required property var modelData
 
-                    sensorId: modelData.sensorId
-                    customLabel: modelData.label
-                    accentColor: modelData.color
-                    showLabel: modelData.showLabel
-                    isLast: modelData.isLast
+                    entry: modelData
                     showColorBar: view.showColorBar
-                    showDefaultName: view.showNames
+                    showNames: view.showNames
                     separator: view.separator
                     uniformTextColor: view.uniformTextColor
                     autoAdaptColors: view.autoAdaptColors
@@ -201,6 +299,8 @@ Item {
                     bold: view.bold
                     textColor: view.textColor
                     updateInterval: view.updateInterval
+                    placeholderContents: view.placeholderContents
+                    placeholderHeight: view.textBlockHeight
                 }
             }
         }
@@ -226,23 +326,22 @@ Item {
         Repeater {
             model: view.tableMode ? view.tableCells() : []
 
-            delegate: SensorItem {
+            delegate: DisplayEntry {
                 required property var modelData
 
-                Layout.alignment: (modelData.part === "label" ? view.labelAlign : view.valueAlign) | Qt.AlignVCenter
+                Layout.alignment: (modelData.part === "value" ? view.valueAlign : view.labelAlign) | Qt.AlignVCenter
+                Layout.rowSpan: modelData.rowSpan !== undefined ? modelData.rowSpan : 1
+                Layout.row: modelData.row !== undefined ? modelData.row : -1
+                Layout.column: modelData.column !== undefined ? modelData.column : -1
                 // keep the space between two sensors visibly larger than the one
                 // between a sensor and its own value
-                Layout.leftMargin: (modelData.part === "label" && !modelData.firstColumn)
+                Layout.leftMargin: (modelData.part !== "value" && !modelData.firstColumn)
                                    ? Math.max(0, view.itemSpacing - view.tableGap) : 0
 
-                sensorId: modelData.entry.sensorId
-                customLabel: modelData.entry.label
-                accentColor: modelData.entry.color
-                showLabel: modelData.entry.showLabel
+                entry: modelData.entry
                 part: modelData.part
-                isLast: modelData.lastColumn
                 showColorBar: view.showColorBar
-                showDefaultName: view.showNames
+                showNames: view.showNames
                 separator: view.separator
                 uniformTextColor: view.uniformTextColor
                 autoAdaptColors: view.autoAdaptColors
@@ -252,6 +351,8 @@ Item {
                 bold: view.bold
                 textColor: view.textColor
                 updateInterval: view.updateInterval
+                placeholderContents: view.placeholderContents
+                placeholderHeight: view.textBlockHeight
             }
         }
     }

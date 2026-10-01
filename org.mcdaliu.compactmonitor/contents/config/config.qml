@@ -20,6 +20,11 @@ ConfigModel {
         icon: "notifications"
         source: "config/ConfigAlerts.qml"
     }
+    ConfigCategory {
+        name: I18n.text("外部内容")
+        icon: "insert-text"
+        source: "config/ConfigPlaceholders.qml"
+    }
 
     // the dialog has no access to the applet configuration, so the page names
     // follow the system language

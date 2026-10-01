@@ -10,12 +10,22 @@ set -euo pipefail
 PLUGIN_ID="org.mcdaliu.compactmonitor"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PACKAGE_DIR="$SCRIPT_DIR/$PLUGIN_ID"
-OUTPUT="${1:-$SCRIPT_DIR/compact-monitor.plasmoid}"
 
 if [ ! -d "$PACKAGE_DIR" ]; then
     echo "error: package directory not found: $PACKAGE_DIR" >&2
     exit 1
 fi
+
+# The version comes from metadata.json; putting it in the file name is only for
+# humans - what identifies the package is metadata.json's Id and Version.
+VERSION="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["KPlugin"]["Version"])' \
+    "$PACKAGE_DIR/metadata.json" 2>/dev/null || true)"
+if [ -n "$VERSION" ]; then
+    DEFAULT_OUTPUT="$SCRIPT_DIR/compact-monitor-$VERSION.plasmoid"
+else
+    DEFAULT_OUTPUT="$SCRIPT_DIR/compact-monitor.plasmoid"
+fi
+OUTPUT="${1:-$DEFAULT_OUTPUT}"
 
 # A .plasmoid is a zip archive whose *root* contains metadata.json and contents/.
 # That is what KPackage (kpackagetool6) and the panel's "Install Widget From
