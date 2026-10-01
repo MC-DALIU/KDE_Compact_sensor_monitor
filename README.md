@@ -533,7 +533,9 @@ language of `i18n()` at runtime from QML, and the JSON files one might expect ca
 ## Contributing
 
 Issues, screenshots of your own panel setup and pull requests are welcome. User-visible changes
-belong in [CHANGELOG.md](CHANGELOG.md) under *Unreleased*. To release: move them into a new version
+belong in [CHANGELOG.md](CHANGELOG.md) under *Unreleased* (and in
+[CHANGELOG.zh_CN.md](CHANGELOG.zh_CN.md), which is its Chinese translation — please keep the two in
+step). To release: move them into a new version
 section, bump `KPlugin.Version` in
 [`metadata.json`](org.mcdaliu.compactmonitor/metadata.json) to match, run `./package.sh`, then tag
 `v<version>` and attach the `.plasmoid` to the GitHub release (and upload it to store.kde.org). If you touch QML files, please run at least
