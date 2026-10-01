@@ -473,8 +473,9 @@ QtObject {
 
 ## 参与贡献
 
-欢迎提 issue、贴自己面板的截图、提 PR。用户可见的改动请写进
-[CHANGELOG.md](CHANGELOG.md) 的 *Unreleased* 段。发版流程：归入新的版本段 → 把
+欢迎提 issue、贴自己面板的截图、提 PR。用户可见的改动请写进中文的
+[CHANGELOG.zh_CN.md](CHANGELOG.zh_CN.md)（以及英文的 [CHANGELOG.md](CHANGELOG.md)，两份请保持
+同步）的 *Unreleased* 段。发版流程：归入新的版本段 → 把
 [`metadata.json`](org.mcdaliu.compactmonitor/metadata.json) 里的 `KPlugin.Version` 改成同一个版本号
 → 跑 `./package.sh` → 打 `v<版本号>` 的 Git tag 并把 `.plasmoid` 作为附件传到 GitHub Release
 （顺便上传到 store.kde.org）。改 QML 的话请至少跑一下
