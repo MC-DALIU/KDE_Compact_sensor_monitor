@@ -294,6 +294,15 @@ Measured on a laptop, five areas, one-second interval:
 | five areas | 1.7 ms | ≈ 0.17 % of one core |
 | an empty shell, for comparison | 1.4 ms | ≈ 0.14 % of one core |
 
+**The widget never writes anything.** It only reads the files, and because it reads them every second
+the kernel keeps them in the page cache, so the polling costs no disk I/O at all. The writing is done by
+the program that pushes, and it rewrites one file rather than creating new ones. Even at one update per
+second the file system's minimum write unit (usually 4 KB) dominates the payload: roughly 350 MB a day,
+which is nothing against an SSD's endurance — but if you want it to be exactly zero, set the *interface
+file directory* to a memory file system such as `/dev/shm/compact-monitor`. The content then disappears
+on reboot, which for a "now playing" line is usually fine. (This also avoids the extra write
+amplification of copy-on-write file systems like btrfs or ZFS.)
+
 Nothing runs at all while no area is configured, and the *read interval* on the *External content* page
 can be raised (2 s, 5 s, …) to lower it further. For scale: the sensors this widget shows are updated by
 `ksystemstats` once per second, which costs considerably more than that.
