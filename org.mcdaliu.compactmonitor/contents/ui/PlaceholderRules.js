@@ -169,6 +169,25 @@ function frameCommand(quotedFiles) {
 }
 
 /*!
+    Whether two messages would look the same. Used to skip publishing an update
+    the display already shows: a file rewritten with identical content (a player
+    that writes its title every second, say) must not make the widget lay itself
+    out again.
+*/
+function sameMessage(first, second) {
+    if (first === second) {
+        return true;
+    }
+    if (first === null || first === undefined || second === null || second === undefined) {
+        return false;
+    }
+    return String(first.text || "") === String(second.text || "")
+            && String(first.color || "") === String(second.color || "")
+            && String(first.tooltip || "") === String(second.tooltip || "")
+            && String(first.align || "") === String(second.align || "");
+}
+
+/*!
     Splits what frameCommand printed into { "<path>": "<content>" }.
 */
 function parseFramed(text) {

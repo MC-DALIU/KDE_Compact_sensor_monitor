@@ -466,6 +466,7 @@ KCM.SimpleKCM {
             const label = (raw.label === undefined || raw.label === null) ? "" : String(raw.label);
             entries.push(root.makeEntry(id, label, colorValue, showLabel));
         }
+        root.assignMissingColors(entries);
 
         if (entries.length === 0) {
             root.showMessage(Kirigami.MessageType.Error,
@@ -506,6 +507,65 @@ KCM.SimpleKCM {
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /*!
+        The colours a new sensor gets, the way Plasma's own system monitor colours
+        its charts: each added sensor takes the first colour that no other sensor
+        uses yet, and only once they are all taken does it start over. Ten entries
+        are enough for a panel widget and stay distinguishable next to each other.
+    */
+    readonly property var colorPalette: [
+        "#2ec27e", "#3584e4", "#e5a50a", "#c061cb", "#e01b24",
+        "#986a44", "#1a5fb4", "#c64600", "#26a269", "#9141ac"
+    ]
+
+    //! the colour to give the next sensor: the first one not in use
+    function nextColor() {
+        const used = {};
+        for (let i = 0; i < root.entries.length; ++i) {
+            const value = String(root.entries[i].color || "").toLowerCase();
+            if (value.length > 0) {
+                used[value] = true;
+            }
+        }
+        for (let i = 0; i < root.colorPalette.length; ++i) {
+            if (used[root.colorPalette[i]] !== true) {
+                return root.colorPalette[i];
+            }
+        }
+        // every colour is in use: cycle through them again by position
+        return root.colorPalette[root.entries.length % root.colorPalette.length];
+    }
+
+    /*!
+        Fills in the colour of entries that came without one (an import of a file
+        written by hand, for instance), so that no sensor ends up colourless while
+        others have colours. Entries that do have a colour are left alone.
+    */
+    function assignMissingColors(items) {
+        const used = {};
+        for (let i = 0; i < items.length; ++i) {
+            const value = String(items[i].color || "").toLowerCase();
+            if (value.length > 0) {
+                used[value] = true;
+            }
+        }
+        let next = 0;
+        for (let i = 0; i < items.length; ++i) {
+            if (String(items[i].color || "").length > 0) {
+                continue;
+            }
+            while (next < root.colorPalette.length && used[root.colorPalette[next]] === true) {
+                next += 1;
+            }
+            const chosen = next < root.colorPalette.length
+                    ? root.colorPalette[next]
+                    : root.colorPalette[i % root.colorPalette.length];
+            used[chosen] = true;
+            items[i] = root.copyEntry(items[i], {"color": chosen});
+        }
+        return items;
+    }
 
     function makeEntry(sensorId, label, colorValue, showLabel) {
         return {
@@ -616,7 +676,7 @@ KCM.SimpleKCM {
             return;
         }
         const items = root.entries.slice();
-        items.push(root.makeEntry(sensorId, "", "", true));
+        items.push(root.makeEntry(sensorId, "", root.nextColor(), true));
         root.entries = items;
         root.pushToConfig();
     }

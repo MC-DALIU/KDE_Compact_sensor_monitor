@@ -14,6 +14,13 @@ the version the widget reports to Plasma.
 
 ### Added
 
+- **New sensors get a colour automatically.** Adding a sensor takes the first palette colour that no
+  other sensor uses yet and only cycles once all of them are taken, which is what Plasma's own system
+  monitor does; imported entries without a colour are filled in the same way, and colours chosen by
+  hand are never changed.
+- A placeholder area is no longer re-published when the file is rewritten with the content it already
+  shows, so a producer that rewrites its file every second does not make the widget lay itself out
+  again for nothing.
 - The *External content* page says that the widget only reads the interface files and that pointing the
   directory at a memory file system (`/dev/shm/compact-monitor`) avoids disk writes completely. Both
   READMEs explain the actual I/O: the widget never writes, its reads are served from the page cache, and

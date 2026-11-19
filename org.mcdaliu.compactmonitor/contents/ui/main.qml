@@ -230,7 +230,19 @@ PlasmoidItem {
                 result[key] = message;
             }
         }
-        root.placeholderContents = result;
+        // publishing an update the display already shows would make it lay itself
+        // out again for nothing, which matters once an area is refreshed often
+        let changed = false;
+        const keys = Object.keys(result);
+        for (let i = 0; i < keys.length; ++i) {
+            if (!PlaceholderRules.sameMessage(result[keys[i]], root.placeholderContents[keys[i]])) {
+                changed = true;
+                break;
+            }
+        }
+        if (changed) {
+            root.placeholderContents = result;
+        }
     }
 
     Plasma5Support.DataSource {

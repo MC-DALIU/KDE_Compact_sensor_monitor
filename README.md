@@ -181,6 +181,11 @@ move up / move down / remove buttons. *Add sensor…* opens a searchable tree of
 `ksystemstats` reports, *Restore defaults* brings back the shipped four, and
 *Import…* / *Export…* read and write JSON files.
 
+A sensor added with *Add sensor…* gets a colour of its own automatically, the way Plasma's system
+monitor colours its charts: the first palette colour no other sensor uses yet, and cycling once they
+are all taken. Imported entries without a colour are filled in the same way; colours you picked
+yourself are never touched.
+
 ### Alerts
 
 Each rule takes two lines: the sensor (with its live value and id), *above* / *below*, the
