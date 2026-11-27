@@ -11,6 +11,8 @@
 
 ## [未发布]
 
+## [1.4.0] - 2026-11-27
+
 ### 新增
 
 - **新增的传感器会自动分配颜色。** 添加时取调色板里还没被其它传感器用过的第一个颜色，全部用过后才
@@ -143,7 +145,8 @@
 - 悬停提示、点击展开的弹窗视图、可配置的刷新间隔、间距与分隔符
 - 中文界面；中英文文档
 
-[未发布]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.3.0...HEAD
+[未发布]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/MC-DALIU/KDE_Compact_sensor_monitor/compare/v1.0.0...v1.1.0
