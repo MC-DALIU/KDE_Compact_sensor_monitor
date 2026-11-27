@@ -29,15 +29,17 @@ the version the widget reports to Plasma.
 
 ### Fixed
 
-- **A sensor that came back after disappearing stayed at `--`** until the widget's settings were opened.
-  `ksystemstats` forgets that a client was subscribed to a sensor when that sensor goes away (a USB
-  network adapter unplugged, a battery, a Bluetooth device), and `KSysGuard::Sensor` neither notices the
-  removal nor subscribes again when the sensor returns - so no value ever arrived again, and only
-  re-creating the sensor object (which opening the settings happens to do) brought it back. The widget
-  now watches its sensors and subscribes again when one stops delivering: when it is not ready, or when
-  no value has arrived for a few update intervals. Attempts back off from two seconds to half a minute,
-  so a sensor that is genuinely gone costs almost nothing, and a healthy one costs nothing at all.
-  Alerts use the same wrapper, so a threshold rule also starts firing again when its sensor returns.
+- **A sensor that disappeared kept showing its last value, and one that came back stayed at `--`**
+  until the widget's settings were opened. `ksystemstats` forgets that a client was subscribed to a
+  sensor when that sensor goes away (a USB adapter unplugged, a battery, a Bluetooth device), and
+  `KSysGuard::Sensor` neither notices the removal nor subscribes again when the sensor returns. The
+  widget now follows the daemon's own list of sensors: a sensor that goes away is shown as `--` instead
+  of keeping a value that no longer reflects anything, and one that comes back is subscribed again.
+  Re-subscribing deliberately does not unsubscribe first, because a daemon whose last client leaves
+  resets a sensor to its initial value - which is why a device that came back could read 0 %. The
+  display, the tool tip and the threshold alerts all use the same wrapper, so a rule fires again when
+  its sensor returns.
+
 
 ## [1.3.0] - 2026-10-01
 

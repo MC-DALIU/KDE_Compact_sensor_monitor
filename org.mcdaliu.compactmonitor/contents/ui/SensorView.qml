@@ -30,6 +30,8 @@ Item {
     property var sensorLabels: []
     property var sensorColors: []
     property var sensorShowLabels: []
+    //! which sensors the daemon currently lists, by id
+    property var presentSensors: ({})
     //! the placeholder areas and what they currently show, interleaved below
     property var placeholders: []
     property var placeholderContents: ({})
@@ -268,6 +270,7 @@ Item {
                     bold: view.bold
                     textColor: view.textColor
                     updateInterval: view.updateInterval
+                    presentSensors: view.presentSensors
                     placeholderContents: view.placeholderContents
                     placeholderHeight: view.textBlockHeight
                 }
@@ -299,6 +302,7 @@ Item {
                     bold: view.bold
                     textColor: view.textColor
                     updateInterval: view.updateInterval
+                    presentSensors: view.presentSensors
                     placeholderContents: view.placeholderContents
                     placeholderHeight: view.textBlockHeight
                 }
@@ -351,6 +355,7 @@ Item {
                 bold: view.bold
                 textColor: view.textColor
                 updateInterval: view.updateInterval
+                presentSensors: view.presentSensors
                 placeholderContents: view.placeholderContents
                 placeholderHeight: view.textBlockHeight
             }

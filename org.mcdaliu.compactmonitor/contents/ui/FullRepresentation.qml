@@ -21,6 +21,9 @@ import org.kde.plasma.plasmoid
 Item {
     id: rep
 
+    //! handed over by main.qml: which sensors the daemon currently lists, by id
+    property var presentSensors: ({})
+
     //! handed over by main.qml: { "<encoded rule>": message }
     property var placeholderContents: ({})
 
@@ -98,6 +101,7 @@ Item {
         sensorLabels: Plasmoid.configuration.sensorLabels
         sensorColors: Plasmoid.configuration.sensorColors
         sensorShowLabels: Plasmoid.configuration.sensorShowLabels
+        presentSensors: rep.presentSensors
         placeholders: rep.placeholderRules
         placeholderContents: rep.placeholderContents
     }

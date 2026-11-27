@@ -186,9 +186,11 @@ monitor colours its charts: the first palette colour no other sensor uses yet, a
 are all taken. Imported entries without a colour are filled in the same way; colours you picked
 yourself are never touched.
 
-A sensor that goes away and comes back - a USB network adapter, a battery, a Bluetooth mouse - is
-subscribed to again automatically, so it keeps showing its value instead of staying at `--` until the
-settings are opened. The same applies to the sensors a threshold alert watches.
+A sensor that goes away - a USB network adapter unplugged, a battery, a Bluetooth mouse - shows `--`
+instead of its last value, and is subscribed to again by itself when it comes back, so it does not
+stay at `--` until the settings are opened. The same applies to the sensors a threshold alert
+watches. Note that a device that has just returned reads whatever `ksystemstats` has for it, which can
+be its initial value until the driver reports in again.
 
 ### Alerts
 

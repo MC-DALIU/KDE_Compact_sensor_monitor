@@ -36,6 +36,9 @@ Item {
     property color textColor: "white"
     property int updateInterval: 1000
 
+    //! which sensors the daemon currently lists, by id
+    property var presentSensors: ({})
+
     // placeholder settings
     property var placeholderContents: ({})
     property real placeholderHeight: 0
@@ -72,6 +75,10 @@ Item {
         bold: entryRoot.bold
         textColor: entryRoot.textColor
         updateInterval: entryRoot.updateInterval
+        sensorPresent: entryRoot.entry !== null && entryRoot.entry !== undefined
+                       && String(entryRoot.entry.sensorId || "").length > 0
+                       ? entryRoot.presentSensors[String(entryRoot.entry.sensorId)] === true
+                       : true
     }
 
     PlaceholderView {
