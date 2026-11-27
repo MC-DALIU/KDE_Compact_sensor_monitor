@@ -99,11 +99,11 @@ PlasmoidItem {
 
         model: root.sensorIds
 
-        delegate: Sensors.Sensor {
+        delegate: LiveSensor {
             required property string modelData
 
             sensorId: modelData
-            updateRateLimit: Math.max(500, Plasmoid.configuration.updateInterval)
+            updateInterval: Math.max(500, Plasmoid.configuration.updateInterval)
         }
     }
 
@@ -318,13 +318,13 @@ PlasmoidItem {
 
         model: root.alertRules
 
-        delegate: Sensors.Sensor {
+        delegate: LiveSensor {
             required property var modelData
             required property int index
 
             sensorId: modelData.sensorId
-            updateRateLimit: Math.max(500, Plasmoid.configuration.updateInterval)
-            onValueChanged: root.evaluateAlert(index)
+            updateInterval: Math.max(500, Plasmoid.configuration.updateInterval)
+            onValueReceived: root.evaluateAlert(index)
         }
     }
 
@@ -380,7 +380,7 @@ PlasmoidItem {
             return;
         }
         const sensor = alertSensors.objectAt(index);
-        if (!sensor || sensor.status !== Sensors.Sensor.Ready) {
+        if (!sensor || !sensor.ready) {
             return;
         }
         const value = Number(sensor.value);
@@ -453,7 +453,7 @@ PlasmoidItem {
             if (!sensor) {
                 continue;
             }
-            const ready = sensor.status === Sensors.Sensor.Ready && sensor.formattedValue.length > 0;
+            const ready = sensor.ready && sensor.formattedValue.length > 0;
             const value = ready ? sensor.formattedValue : "--";
             const label = root.labelFor(i);
             lines.push(label.length > 0 ? label + " " + value : value);

@@ -27,6 +27,18 @@ the version the widget reports to Plasma.
   the writes are the pushing program's own — one file rewritten, around 350 MB a day at one update per
   second, which is negligible for an SSD but exactly zero on a memory file system.
 
+### Fixed
+
+- **A sensor that came back after disappearing stayed at `--`** until the widget's settings were opened.
+  `ksystemstats` forgets that a client was subscribed to a sensor when that sensor goes away (a USB
+  network adapter unplugged, a battery, a Bluetooth device), and `KSysGuard::Sensor` neither notices the
+  removal nor subscribes again when the sensor returns - so no value ever arrived again, and only
+  re-creating the sensor object (which opening the settings happens to do) brought it back. The widget
+  now watches its sensors and subscribes again when one stops delivering: when it is not ready, or when
+  no value has arrived for a few update intervals. Attempts back off from two seconds to half a minute,
+  so a sensor that is genuinely gone costs almost nothing, and a healthy one costs nothing at all.
+  Alerts use the same wrapper, so a threshold rule also starts firing again when its sensor returns.
+
 ## [1.3.0] - 2026-10-01
 
 ### Added

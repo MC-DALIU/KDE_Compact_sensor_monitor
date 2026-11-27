@@ -11,7 +11,6 @@ import "ColorUtils.js" as ColorUtils
 import "SensorNames.js" as SensorNames
 
 import org.kde.kirigami as Kirigami
-import org.kde.ksysguard.sensors as Sensors
 
 /*!
     A single "name value" pair, showing one system monitor sensor.
@@ -73,10 +72,10 @@ RowLayout {
 
     spacing: Math.max(2, Math.round(item.pixelSize * 0.25))
 
-    Sensors.Sensor {
+    LiveSensor {
         id: sensor
         sensorId: item.sensorId
-        updateRateLimit: Math.max(100, item.updateInterval)
+        updateInterval: item.updateInterval
     }
 
     //! short name recognised from the sensor id, e.g. "CPU", "RAM", "DISK"
@@ -93,7 +92,7 @@ RowLayout {
         }
         return item.defaultName;
     }
-    readonly property bool sensorReady: sensor.status === Sensors.Sensor.Ready
+    readonly property bool sensorReady: sensor.ready
     readonly property string valueText: {
         if (item.sensorId.length === 0) {
             return "";

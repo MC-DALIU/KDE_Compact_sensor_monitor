@@ -186,6 +186,10 @@ monitor colours its charts: the first palette colour no other sensor uses yet, a
 are all taken. Imported entries without a colour are filled in the same way; colours you picked
 yourself are never touched.
 
+A sensor that goes away and comes back - a USB network adapter, a battery, a Bluetooth mouse - is
+subscribed to again automatically, so it keeps showing its value instead of staying at `--` until the
+settings are opened. The same applies to the sensors a threshold alert watches.
+
 ### Alerts
 
 Each rule takes two lines: the sensor (with its live value and id), *above* / *below*, the
@@ -495,7 +499,7 @@ A few notes for anyone who wants to hack on it (or write a similar widget):
 | Symptom                                                       | Cause / fix                                                                                     |
 | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | After an update the widget shows nothing, or is a tiny square | either plasmashell's QML cache (restart plasmashell) or a QML error: `journalctl --user -u plasma-plasmashell` prints the file and line |
-| A sensor always shows`--`                                   | that sensor id does not exist on this machine; check the picker                                 |
+| A sensor always shows`--`                                   | that sensor id does not exist on this machine; check the picker. If the hardware is only temporarily gone the widget subscribes again by itself once it is back |
 | Colors look washed out                                        | that is the automatic contrast adjustment; turn *Dark/light* off to keep your colors untouched |
 | The widget is too wide                                        | fewer sensors, hide the names, smaller font, or the *Packed* layout                            |
 | The placeholder area stays empty | check that it is enabled, that the *content file* is the file you write to, and that the file is not empty; it is read once per refresh interval |
