@@ -22,7 +22,7 @@ Item {
     id: rep
 
     //! handed over by main.qml: which sensors the daemon currently lists, by id
-    property var presentSensors: ({})
+    property var presentSensors: null
 
     //! handed over by main.qml: { "<encoded rule>": message }
     property var placeholderContents: ({})

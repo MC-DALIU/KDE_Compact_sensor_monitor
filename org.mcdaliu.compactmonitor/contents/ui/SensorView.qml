@@ -30,8 +30,8 @@ Item {
     property var sensorLabels: []
     property var sensorColors: []
     property var sensorShowLabels: []
-    //! which sensors the daemon currently lists, by id
-    property var presentSensors: ({})
+    //! which sensors the daemon currently lists, by id; null while unknown
+    property var presentSensors: null
     //! the placeholder areas and what they currently show, interleaved below
     property var placeholders: []
     property var placeholderContents: ({})

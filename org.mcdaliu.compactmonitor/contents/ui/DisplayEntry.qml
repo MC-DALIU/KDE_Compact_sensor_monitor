@@ -36,8 +36,12 @@ Item {
     property color textColor: "white"
     property int updateInterval: 1000
 
-    //! which sensors the daemon currently lists, by id
-    property var presentSensors: ({})
+    /*!
+        Which sensors the daemon currently lists, by id. \c null means "not known
+        yet" - the configuration preview never fills it in, and a sensor must not
+        show "--" just because nobody computed that map.
+    */
+    property var presentSensors: null
 
     // placeholder settings
     property var placeholderContents: ({})
@@ -75,10 +79,11 @@ Item {
         bold: entryRoot.bold
         textColor: entryRoot.textColor
         updateInterval: entryRoot.updateInterval
-        sensorPresent: entryRoot.entry !== null && entryRoot.entry !== undefined
-                       && String(entryRoot.entry.sensorId || "").length > 0
-                       ? entryRoot.presentSensors[String(entryRoot.entry.sensorId)] === true
-                       : true
+        sensorPresent: entryRoot.presentSensors === null || entryRoot.presentSensors === undefined
+                       ? true
+                       : (entryRoot.entry !== null && entryRoot.entry !== undefined
+                          ? entryRoot.presentSensors[String(entryRoot.entry.sensorId || "")] === true
+                          : true)
     }
 
     PlaceholderView {

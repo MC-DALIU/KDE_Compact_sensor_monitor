@@ -122,8 +122,17 @@ PlasmoidItem {
         onModelReset: root.refreshPresence()
     }
 
-    //! { "<sensor id>": true } for the sensors the daemon reports
-    property var presentSensors: ({})
+    //! { "<sensor id>": true } for the sensors the daemon reports; null until known
+    property var presentSensors: null
+
+    //! the model's signals are the fast path; this makes sure a missed one cannot
+    //! leave a sensor displayed as present forever (12 cheap reads every 2 s)
+    property var presencePoll: Timer {
+        interval: 2000
+        repeat: true
+        running: true
+        onTriggered: root.refreshPresence()
+    }
 
     function refreshPresence() {
         const map = {};
@@ -135,7 +144,16 @@ PlasmoidItem {
                 map[String(id)] = true;
             }
         }
+        const previous = root.presentSensors;
+        const before = previous === null ? "" : Object.keys(previous).sort().join(",");
+        const after = Object.keys(map).sort().join(",");
         root.presentSensors = map;
+        if (before !== after) {
+            const missing = root.sensorIds.filter(function (id) { return map[id] !== true; });
+            console.log("Compact Monitor: sensors present " + Object.keys(map).length
+                        + "/" + root.sensorIds.length
+                        + (missing.length > 0 ? ", missing: " + missing.join(" ") : ""));
+        }
     }
 
     // representations create their own ones.
