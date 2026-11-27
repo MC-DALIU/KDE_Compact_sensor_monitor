@@ -58,8 +58,6 @@ RowLayout {
     property bool bold: false
     property color textColor: Kirigami.Theme.textColor
     property int updateInterval: 1000
-    //! whether the statistics daemon currently lists this sensor
-    property bool sensorPresent: true
 
     readonly property bool hasAccent: item.accentColor.length > 0
     readonly property color accentColorValue: item.hasAccent ? item.accentColor : "transparent"
@@ -78,7 +76,6 @@ RowLayout {
         id: sensor
         sensorId: item.sensorId
         updateInterval: item.updateInterval
-        sensorPresent: item.sensorPresent
     }
 
     //! short name recognised from the sensor id, e.g. "CPU", "RAM", "DISK"
@@ -100,12 +97,13 @@ RowLayout {
         if (item.sensorId.length === 0) {
             return "";
         }
-        // a sensor that went away shows "--" at once instead of keeping its last
-        // value, which would look like a reading from hardware that is not there
-        if (!item.sensorPresent || !item.sensorReady || sensor.formattedValue.length === 0) {
+        // the wrapper blanks this while a probe runs (the last value stays visible)
+        // and once the sensor is known to be gone
+        const text = sensor.displayText;
+        if (text.length === 0) {
             return "--";
         }
-        return sensor.formattedValue;
+        return text;
     }
 
     Rectangle {

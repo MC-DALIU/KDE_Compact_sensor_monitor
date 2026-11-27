@@ -9,38 +9,40 @@ import QtQuick
 import org.kde.ksysguard.sensors as Sensors
 
 /*!
-    One sensor, kept alive.
+    One sensor, kept alive and probed.
 
     \c Sensors.Sensor asks the statistics daemon for a sensor once, when its id is
-    set, and never again: it does not listen to the daemon's "sensor removed" or
-    "sensor added" signals (only the model classes do). That breaks on hardware
-    that comes and goes - a USB network adapter, a battery, a Bluetooth mouse:
+    set, and then never again. That is not enough for hardware that comes and goes
+    (a USB network adapter, a battery, a Bluetooth mouse):
 
-    1. the sensor disappears, and `ksystemstats` forgets that this client was
-       subscribed to it (`Client::sensorRemoved` drops the subscription),
-    2. the sensor comes back, but nothing re-subscribes, so no value ever arrives
-       again - the area keeps showing its last value or "--" until the widget is
-       reloaded, which is why opening the settings "fixed" it.
+    * the daemon forgets the subscription when the sensor disappears
+      (`Client::sensorRemoved` drops it), and nothing subscribes again when the
+      sensor returns, so no value ever arrives again - that is why reopening the
+      widget's settings used to "fix" it;
+    * and nothing in QML reports the disappearance. `SensorDaemonInterface` does
+      forward the daemon's `sensorRemoved` signal, but `ksystemstats` fills it with
+      `SensorProperty::path()`, which is `parent->path() + "/" + id` - and by the
+      time the object is gone that parent path is empty, so the signal carries only
+      "/chargePercentage" instead of "power/…/chargePercentage". Every consumer that
+      matches it against a sensor id (the models included, and Plasma's own system
+      monitor) silently fails to notice.
 
-    \c sensorPresent comes from a \c SensorDataModel in main.qml, which *does*
-    follow additions and removals. A sensor that goes away is shown as "--" right
-    away instead of keeping its last value, and one that comes back is subscribed
-    again.
-
-    Re-subscribing deliberately does *not* unsubscribe first: when the last client
-    unsubscribes, `SensorProperty::unsubscribe` resets the value to the sensor's
-    initial value, and a driver that only reports on change may then read 0 until
-    the hardware changes again. Going through an empty id makes `Sensor` subscribe
-    afresh without touching the old subscription, which the daemon has already
-    dropped anyway (that is why we are here).
+    So this wrapper probes instead, and does not depend on that signal at all: every
+    \c probeInterval it subscribes to the sensor again, which makes `Sensor` request
+    the metadata, and the metadata either arrives (the sensor exists) or it does
+    not (it is gone). While a probe is running the previous value stays on screen,
+    so nothing flickers; a probe that times out marks the sensor as gone and the
+    value becomes "--".
 */
 QtObject {
     id: live
 
     property string sensorId: ""
     property int updateInterval: 1000
-    //! whether the statistics daemon currently lists this sensor
-    property bool sensorPresent: true
+    //! how often to check that the sensor is still there
+    property int probeInterval: 10000
+    //! how long a probe may take before the sensor counts as gone
+    property int probeTimeout: 2500
 
     /*!
         Emitted when a new value arrives, after the properties are updated. Not
@@ -48,18 +50,35 @@ QtObject {
     */
     signal valueReceived()
 
-    //! true once the sensor has been seen present at least once
-    property bool everPresent: false
-    //! what the Sensor object is subscribed to; differs from sensorId mid-retry
+    //! what the Sensor object is subscribed to; differs from sensorId mid-probe
     property string subscribedId: ""
-    property double lastAttemptAt: 0
-    //! how long to wait before the next attempt, doubled on every attempt
-    property int retryDelay: 5000
+    //! whether the daemon still knows this sensor
+    property bool alive: true
+    //! true while a probe is waiting for the metadata
+    property bool probing: false
+    property double probeDeadline: 0
 
     readonly property var sensor: Sensors.Sensor {
         sensorId: live.subscribedId
         updateRateLimit: Math.max(100, live.updateInterval)
         onValueChanged: live.valueReceived()
+    }
+
+    /*!
+        A second subscription that exists only while a probe runs.
+
+        Re-subscribing has to unsubscribe first (the daemon would otherwise get a
+        duplicate subscription every probe), but when the last client unsubscribes
+        `SensorProperty` resets the value to the sensor's initial value - a driver
+        that only reports on change then reads that value until the hardware changes
+        again, which is how a returned device ended up showing 0 %. Holding this
+        subscription for the duration of the probe keeps the count above zero, so
+        the value survives.
+    */
+    readonly property var pin: Sensors.Sensor {
+        sensorId: live.subscribedId
+        enabled: false
+        updateRateLimit: 60000
     }
 
     readonly property int status: sensor.status
@@ -70,65 +89,64 @@ QtObject {
     readonly property bool ready: sensor.status === Sensors.Sensor.Ready
 
     /*!
-        Subscribes to the sensor again, without unsubscribing first (see above).
-        Clearing the id makes `Sensor::setSensorId` run its subscription path once
-        more; it returns early only when the id is unchanged.
+        What to draw: the last value while a probe is running, nothing at all once
+        the sensor is known to be gone.
     */
-    function resubscribe() {
-        const wanted = live.sensorId;
-        if (wanted.length === 0) {
+    readonly property bool displayReady: live.alive && (live.ready || live.probing)
+    readonly property string displayText: live.displayReady ? live.formattedValue : ""
+
+    function beginProbe() {
+        if (live.sensorId.length === 0) {
             return;
         }
-        live.lastAttemptAt = Date.now();
-        live.retryDelay = Math.min(60000, live.retryDelay * 2);
+        live.probing = true;
+        live.probeDeadline = Date.now() + live.probeTimeout;
+        // keep one subscription alive across the unsubscribe below
+        live.pin.enabled = true;
+        live.sensor.enabled = false;
         live.subscribedId = "";
-        live.subscribedId = wanted;
+        live.subscribedId = live.sensorId;
+        live.sensor.enabled = true;
     }
 
+    function endProbe(found) {
+        if (found !== live.alive && live.sensorId.length > 0) {
+            // one line per plug/unplug: the journal then says what happened
+            console.log("Compact Monitor: " + live.sensorId
+                        + (found ? " is back" : " is gone"));
+        }
+        live.alive = found;
+        live.probing = false;
+        live.pin.enabled = false;
+    }
+
+    // a different sensor starts with a clean slate
     onSensorIdChanged: {
         live.subscribedId = live.sensorId;
-        live.lastAttemptAt = Date.now();
-        live.retryDelay = 5000;
+        live.alive = true;
+        live.probing = false;
     }
 
-    /*!
-        The sensor came back. This is the one case that needs new work: the daemon
-        dropped the old subscription when the sensor went away.
-    */
-    onSensorPresentChanged: {
-        if (live.sensorPresent) {
-            live.retryDelay = 5000;
-            if (live.everPresent) {
-                live.resubscribe();
-            } else {
-                live.everPresent = true;
-            }
-        }
-    }
+    Component.onCompleted: live.subscribedId = live.sensorId
 
-    Component.onCompleted: {
-        live.subscribedId = live.sensorId;
-        live.lastAttemptAt = Date.now();
-        live.everPresent = live.sensorPresent;
-    }
-
-    /*!
-        A safety net for the odd state of "the daemon lists the sensor but never
-        answers": try again, slowly. Sensors that simply do not report often - a
-        battery reports on change - stay Ready and are left alone.
-    */
-    property var watchdog: Timer {
-        interval: 10000
+    property var probeTimer: Timer {
+        // faster while the sensor is missing, so it comes back quickly
+        interval: live.alive ? live.probeInterval : Math.max(3000, live.probeInterval / 3)
         repeat: true
-        running: live.sensorId.length > 0
+        running: live.sensorId.length > 0 && !live.probing
+        onTriggered: live.beginProbe()
+    }
+
+    property var probeWatch: Timer {
+        interval: 250
+        repeat: true
+        running: live.probing
         onTriggered: {
-            if (!live.sensorPresent || live.ready) {
-                return;
+            if (live.ready) {
+                live.endProbe(true);
+            } else if (Date.now() > live.probeDeadline) {
+                live.endProbe(false);
             }
-            if (Date.now() - live.lastAttemptAt < live.retryDelay) {
-                return;
-            }
-            live.resubscribe();
         }
     }
 }

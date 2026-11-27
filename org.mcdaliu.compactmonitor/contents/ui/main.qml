@@ -42,10 +42,7 @@ PlasmoidItem {
 
     // the applet follows the configured language, or the system one when it is empty
     onUiLanguageChanged: I18n.setLanguage(root.uiLanguage)
-    Component.onCompleted: {
-        I18n.setLanguage(root.uiLanguage);
-        root.refreshPresence();
-    }
+    Component.onCompleted: I18n.setLanguage(root.uiLanguage)
 
     // The panel's applet container asks the applet item itself for its size
     // hints, so mirror what the compact representation needs.
@@ -57,12 +54,10 @@ PlasmoidItem {
 
     compactRepresentation: CompactRepresentation {
         placeholderContents: root.placeholderContents
-        presentSensors: root.presentSensors
     }
 
     fullRepresentation: FullRepresentation {
         placeholderContents: root.placeholderContents
-        presentSensors: root.presentSensors
     }
 
     toolTipMainText: I18n.text("紧凑监视器")
@@ -98,64 +93,6 @@ PlasmoidItem {
     }
 
     // Sensors that are only used to build the tool tip, the visible
-    /*!
-        Which sensors the statistics daemon currently lists.
-
-        A `Sensors.Sensor` object does not hear about sensors appearing or
-        disappearing (only the model classes do), so this model is the widget's
-        source of truth for that: a sensor that goes away loses its column, one
-        that comes back gains it again. Displaying "--" for a sensor that is gone,
-        and subscribing again when it returns, both hang off this.
-
-        It also keeps a subscription of its own for every sensor, which is a happy
-        side effect: as long as it holds one, no single unsubscribing client can
-        make the daemon reset a sensor's value to its initial value.
-    */
-    Sensors.SensorDataModel {
-        id: sensorPresence
-
-        sensors: root.sensorIds
-        updateRateLimit: 2000
-
-        onColumnsInserted: root.refreshPresence()
-        onColumnsRemoved: root.refreshPresence()
-        onModelReset: root.refreshPresence()
-    }
-
-    //! { "<sensor id>": true } for the sensors the daemon reports; null until known
-    property var presentSensors: null
-
-    //! the model's signals are the fast path; this makes sure a missed one cannot
-    //! leave a sensor displayed as present forever (12 cheap reads every 2 s)
-    property var presencePoll: Timer {
-        interval: 2000
-        repeat: true
-        running: true
-        onTriggered: root.refreshPresence()
-    }
-
-    function refreshPresence() {
-        const map = {};
-        const columns = sensorPresence.columnCount();
-        for (let column = 0; column < columns; ++column) {
-            const id = sensorPresence.data(sensorPresence.index(0, column),
-                                           Sensors.SensorDataModel.SensorId);
-            if (id !== undefined && id !== null && String(id).length > 0) {
-                map[String(id)] = true;
-            }
-        }
-        const previous = root.presentSensors;
-        const before = previous === null ? "" : Object.keys(previous).sort().join(",");
-        const after = Object.keys(map).sort().join(",");
-        root.presentSensors = map;
-        if (before !== after) {
-            const missing = root.sensorIds.filter(function (id) { return map[id] !== true; });
-            console.log("Compact Monitor: sensors present " + Object.keys(map).length
-                        + "/" + root.sensorIds.length
-                        + (missing.length > 0 ? ", missing: " + missing.join(" ") : ""));
-        }
-    }
-
     // representations create their own ones.
     Instantiator {
         id: tipSensors
@@ -387,7 +324,6 @@ PlasmoidItem {
 
             sensorId: modelData.sensorId
             updateInterval: Math.max(500, Plasmoid.configuration.updateInterval)
-            sensorPresent: root.presentSensors[modelData.sensorId] === true
             onValueReceived: root.evaluateAlert(index)
         }
     }
@@ -444,7 +380,7 @@ PlasmoidItem {
             return;
         }
         const sensor = alertSensors.objectAt(index);
-        if (!sensor || !sensor.ready) {
+        if (!sensor || !sensor.displayReady) {
             return;
         }
         const value = Number(sensor.value);
@@ -517,7 +453,7 @@ PlasmoidItem {
             if (!sensor) {
                 continue;
             }
-            const ready = sensor.ready && sensor.formattedValue.length > 0;
+            const ready = sensor.displayReady && sensor.formattedValue.length > 0;
             const value = ready ? sensor.formattedValue : "--";
             const label = root.labelFor(i);
             lines.push(label.length > 0 ? label + " " + value : value);

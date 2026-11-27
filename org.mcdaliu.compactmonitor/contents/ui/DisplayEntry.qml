@@ -41,8 +41,6 @@ Item {
         yet" - the configuration preview never fills it in, and a sensor must not
         show "--" just because nobody computed that map.
     */
-    property var presentSensors: null
-
     // placeholder settings
     property var placeholderContents: ({})
     property real placeholderHeight: 0
@@ -79,11 +77,6 @@ Item {
         bold: entryRoot.bold
         textColor: entryRoot.textColor
         updateInterval: entryRoot.updateInterval
-        sensorPresent: entryRoot.presentSensors === null || entryRoot.presentSensors === undefined
-                       ? true
-                       : (entryRoot.entry !== null && entryRoot.entry !== undefined
-                          ? entryRoot.presentSensors[String(entryRoot.entry.sensorId || "")] === true
-                          : true)
     }
 
     PlaceholderView {

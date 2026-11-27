@@ -30,15 +30,18 @@ the version the widget reports to Plasma.
 ### Fixed
 
 - **A sensor that disappeared kept showing its last value, and one that came back stayed at `--`**
-  until the widget's settings were opened. `ksystemstats` forgets that a client was subscribed to a
-  sensor when that sensor goes away (a USB adapter unplugged, a battery, a Bluetooth device), and
-  `KSysGuard::Sensor` neither notices the removal nor subscribes again when the sensor returns. The
-  widget now follows the daemon's own list of sensors: a sensor that goes away is shown as `--` instead
-  of keeping a value that no longer reflects anything, and one that comes back is subscribed again.
-  Re-subscribing deliberately does not unsubscribe first, because a daemon whose last client leaves
-  resets a sensor to its initial value - which is why a device that came back could read 0 %. The
-  display, the tool tip and the threshold alerts all use the same wrapper, so a rule fires again when
-  its sensor returns.
+  until the widget's settings were opened. Two things are wrong underneath: `ksystemstats` drops a
+  client's subscription when a sensor goes away, and `KSysGuard::Sensor` never subscribes again - and
+  the daemon's `sensorRemoved` signal cannot be used to notice it either, because it carries
+  `SensorProperty::path()` at a moment when the parent object's path is already empty, so it arrives as
+  "/chargePercentage" instead of "power/…/chargePercentage" and every consumer that matches it against
+  an id (the models included, and Plasma's own system monitor) silently ignores it. The widget now
+  probes instead: every ten seconds it subscribes to each sensor again, `Sensor` requests the metadata,
+  and the metadata either arrives or it does not. A sensor that is gone shows `--` instead of a value
+  that no longer means anything, and one that comes back is picked up by the next probe. During a probe
+  the previous value stays on screen, and a temporary second subscription keeps the daemon from
+  resetting the value to its initial value (which is how a returned device used to read 0 %). The
+  display, the tool tip and the threshold alerts all use this.
 
 
 ## [1.3.0] - 2026-10-01

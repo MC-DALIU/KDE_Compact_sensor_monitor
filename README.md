@@ -187,10 +187,13 @@ are all taken. Imported entries without a colour are filled in the same way; col
 yourself are never touched.
 
 A sensor that goes away - a USB network adapter unplugged, a battery, a Bluetooth mouse - shows `--`
-instead of its last value, and is subscribed to again by itself when it comes back, so it does not
-stay at `--` until the settings are opened. The same applies to the sensors a threshold alert
-watches. Note that a device that has just returned reads whatever `ksystemstats` has for it, which can
-be its initial value until the driver reports in again.
+instead of its last value, and is picked up again by itself when it comes back, so it does not stay at
+`--` until the settings are opened. This cannot use the daemon's `sensorRemoved` signal: as of Plasma
+6.7 that signal carries only "/chargePercentage" instead of the full sensor path, which is also why
+Plasma's own system monitor keeps listing removed hardware. The widget probes instead, subscribing to
+each sensor again every ten seconds and seeing whether the daemon answers. The same applies to the
+sensors a threshold alert watches. A device that has just returned reads whatever `ksystemstats` has
+for it, which can be its initial value until the driver reports in again.
 
 ### Alerts
 
